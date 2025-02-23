@@ -1,1161 +1,2398 @@
--- FE Nameless Animations V2 *R15* Script - 2022 (COPY THE SCRIPT!)
-
--- JOIN THE DISCORD! - https://discord.gg/3GJECGdCWY
-
---[[
-    fe nameless animations v2
-    made by MyWorld#4430
-    discord.gg/pYVHtSJmEY
-    no hats needed, r15 supported
-]]
-
-if "myworld reanimate again" then
-    --reanimate by MyWorld#4430 discord.gg/pYVHtSJmEY
-    local Vector3_101 = Vector3.new(1, 0, 1)
-    local netless_Y = Vector3.new(0, 25.1, 0)
-    local function getNetlessVelocity(realPartVelocity) --change this if you have a better method
-        local mag = realPartVelocity.Magnitude
-        if (mag > 1) and (mag < 100) then
-            local unit = realPartVelocity.Unit
-            if (unit.Y > 0.7) or (unit.Y < -0.7) then
-                return realPartVelocity * (25.1 / realPartVelocity.Y)
-            end
-            realPartVelocity = unit * 100
-        end
-        return (realPartVelocity * Vector3_101) + netless_Y
-    end
-    local simradius = "shp" --simulation radius (net bypass) method
-    --"shp" - sethiddenproperty
-    --"ssr" - setsimulationradius
-    --false - disable
-    local noclipAllParts = false --set it to true if you want noclip
-    local flingpart = "HumanoidRootPart" --the part that will be used to fling (ctrl + F "fling function")
-    local antiragdoll = true --removes hingeConstraints and ballSocketConstraints from your character
-    local newanimate = true --disables the animate script and enables after reanimation
-    local discharscripts = true --disables all localScripts parented to your character before reanimation
-    local R15toR6 = true --tries to convert your character to r6 if its r15
-    local hatcollide = false --makes hats cancollide (credit to ShownApe) (works only with reanimate method 0)
-    local humState16 = true --enables collisions for limbs before the humanoid dies (using hum:ChangeState)
-    local addtools = false --puts all tools from backpack to character and lets you hold them after reanimation
-    local hedafterneck = true --disable aligns for head and enable after neck or torso is removed
-    local loadtime = game:GetService("Players").RespawnTime + 0.5 --anti respawn delay
-    local method = 3 --reanimation method
-    --methods:
-    --0 - breakJoints (takes [loadtime] seconds to laod)
-    --1 - limbs
-    --2 - limbs + anti respawn
-    --3 - limbs + breakJoints after [loadtime] seconds
-    --4 - remove humanoid + breakJoints
-    --5 - remove humanoid + limbs
-    local alignmode = 2 --AlignPosition mode
-    --modes:
-    --1 - AlignPosition rigidity enabled true
-    --2 - 2 AlignPositions rigidity enabled both true and false
-    --3 - AlignPosition rigidity enabled false
-    
-    local lp = game:GetService("Players").LocalPlayer
-    local rs = game:GetService("RunService")
-    local stepped = rs.Stepped
-    local heartbeat = rs.Heartbeat
-    local renderstepped = rs.RenderStepped
-    local sg = game:GetService("StarterGui")
-    local ws = game:GetService("Workspace")
-    local cf = CFrame.new
-    local v3 = Vector3.new
-    local v3_0 = Vector3.zero
-    local inf = math.huge
-    
-    local c = lp.Character
-    
-    if not (c and c.Parent) then
-    	return
-    end
-    
-    c:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not (c and c.Parent) then
-    	    c = nil
-    	end
-    end)
-    
-    local function gp(parent, name, className)
-    	if typeof(parent) == "Instance" then
-    		for i, v in pairs(parent:GetChildren()) do
-    			if (v.Name == name) and v:IsA(className) then
-    				return v
-    			end
-    		end
-    	end
-    	return nil
-    end
-    
-    if type(getNetlessVelocity) ~= "function" then
-        getNetlessVelocity = nil
-    end
-    
-    local function align(Part0, Part1)
-    	Part0.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
-    
-    	local att0 = Instance.new("Attachment")
-    	att0.Orientation = v3_0
-    	att0.Position = v3_0
-    	att0.Name = "att0_" .. Part0.Name
-    	local att1 = Instance.new("Attachment")
-    	att1.Orientation = v3_0
-    	att1.Position = v3_0
-    	att1.Name = "att1_" .. Part1.Name
-    
-    	if (alignmode == 1) or (alignmode == 2) then
-    		local ape = Instance.new("AlignPosition", att0)
-    		ape.ApplyAtCenterOfMass = false
-    		ape.MaxForce = inf
-    		ape.MaxVelocity = inf
-    		ape.ReactionForceEnabled = false
-    		ape.Responsiveness = 200
-    		ape.Attachment1 = att1
-    		ape.Attachment0 = att0
-    		ape.Name = "AlignPositionRtrue"
-    		ape.RigidityEnabled = true
-    	end
-    
-    	if (alignmode == 2) or (alignmode == 3) then
-    		local apd = Instance.new("AlignPosition", att0)
-    		apd.ApplyAtCenterOfMass = false
-    		apd.MaxForce = inf
-    		apd.MaxVelocity = inf
-    		apd.ReactionForceEnabled = false
-    		apd.Responsiveness = 200
-    		apd.Attachment1 = att1
-    		apd.Attachment0 = att0
-    		apd.Name = "AlignPositionRfalse"
-    		apd.RigidityEnabled = false
-    	end
-    
-    	local ao = Instance.new("AlignOrientation", att0)
-    	ao.MaxAngularVelocity = inf
-    	ao.MaxTorque = inf
-    	ao.PrimaryAxisOnly = false
-    	ao.ReactionTorqueEnabled = false
-    	ao.Responsiveness = 200
-    	ao.Attachment1 = att1
-    	ao.Attachment0 = att0
-    	ao.RigidityEnabled = false
-    
-    	if getNetlessVelocity then
-    	    local vel = Part0.Velocity
-    	    local velpart = Part1
-            local rsteppedcon = renderstepped:Connect(function()
-                Part0.Velocity = vel
-            end)
-            local heartbeatcon = heartbeat:Connect(function()
-                vel = Part0.Velocity
-                Part0.Velocity = getNetlessVelocity(velpart.Velocity)
-            end)
-            local attcon = nil
-            Part0:GetPropertyChangedSignal("Parent"):Connect(function()
-                if not (Part0 and Part0.Parent) then
-                    rsteppedcon:Disconnect()
-                    heartbeatcon:Disconnect()
-                    attcon:Disconnect()
-                end
-            end)
-            attcon = att1:GetPropertyChangedSignal("Parent"):Connect(function()
-    	        if not (att1 and att1.Parent) then
-    	            attcon:Disconnect()
-                    velpart = Part0
-    	        else
-    	            velpart = att1.Parent
-    	            if not velpart:IsA("BasePart") then
-    	                velpart = Part0
-    	            end
-    	        end
-    	    end)
-    	end
-    	
-    	att0.Parent = Part0
-        att1.Parent = Part1
-    end
-    
-    local function respawnrequest()
-    	local ccfr = ws.CurrentCamera.CFrame
-    	local c = lp.Character
-    	lp.Character = nil
-    	lp.Character = c
-    	local con = nil
-    	con = ws.CurrentCamera.Changed:Connect(function(prop)
-    	    if (prop ~= "Parent") and (prop ~= "CFrame") then
-    	        return
-    	    end
-    	    ws.CurrentCamera.CFrame = ccfr
-    	    con:Disconnect()
-        end)
-    end
-    
-    local destroyhum = (method == 4) or (method == 5)
-    local breakjoints = (method == 0) or (method == 4)
-    local antirespawn = (method == 0) or (method == 2) or (method == 3)
-    
-    hatcollide = hatcollide and (method == 0)
-    
-    addtools = addtools and gp(lp, "Backpack", "Backpack")
-    
-    local fenv = getfenv()
-    local shp = fenv.sethiddenproperty or fenv.set_hidden_property or fenv.set_hidden_prop or fenv.sethiddenprop
-    local ssr = fenv.setsimulationradius or fenv.set_simulation_radius or fenv.set_sim_radius or fenv.setsimradius or fenv.set_simulation_rad or fenv.setsimulationrad
-    
-    if shp and (simradius == "shp") then
-    	spawn(function()
-    		while c and heartbeat:Wait() do
-    			shp(lp, "SimulationRadius", inf)
-    		end
-    	end)
-    elseif ssr and (simradius == "ssr") then
-    	spawn(function()
-    		while c and heartbeat:Wait() do
-    			ssr(inf)
-    		end
-    	end)
-    end
-    
-    antiragdoll = antiragdoll and function(v)
-    	if v:IsA("HingeConstraint") or v:IsA("BallSocketConstraint") then
-    		v.Parent = nil
-    	end
-    end
-    
-    if antiragdoll then
-    	for i, v in pairs(c:GetDescendants()) do
-    		antiragdoll(v)
-    	end
-    	c.DescendantAdded:Connect(antiragdoll)
-    end
-    
-    if antirespawn then
-    	respawnrequest()
-    end
-    
-    if method == 0 then
-    	wait(loadtime)
-    	if not c then
-    		return
-    	end
-    end
-    
-    if discharscripts then
-    	for i, v in pairs(c:GetChildren()) do
-    		if v:IsA("LocalScript") then
-    			v.Disabled = true
-    		end
-    	end
-    elseif newanimate then
-    	local animate = gp(c, "Animate", "LocalScript")
-    	if animate and (not animate.Disabled) then
-    		animate.Disabled = true
-    	else
-    		newanimate = false
-    	end
-    end
-    
-    if addtools then
-    	for i, v in pairs(addtools:GetChildren()) do
-    		if v:IsA("Tool") then
-    			v.Parent = c
-    		end
-    	end
-    end
-    
-    pcall(function()
-    	settings().Physics.AllowSleep = false
-    	settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
-    end)
-    
-    local OLDscripts = {}
-    
-    for i, v in pairs(c:GetDescendants()) do
-    	if v.ClassName == "Script" then
-    		table.insert(OLDscripts, v)
-    	end
-    end
-    
-    local scriptNames = {}
-    
-    for i, v in pairs(c:GetDescendants()) do
-    	if v:IsA("BasePart") then
-    		local newName = tostring(i)
-    		local exists = true
-    		while exists do
-    			exists = false
-    			for i, v in pairs(OLDscripts) do
-    				if v.Name == newName then
-    					exists = true
-    				end
-    			end
-    			if exists then
-    				newName = newName .. "_"    
-    			end
-    		end
-    		table.insert(scriptNames, newName)
-    		Instance.new("Script", v).Name = newName
-    	end
-    end
-    
-    c.Archivable = true
-    local hum = c:FindFirstChildOfClass("Humanoid")
-    if hum then
-    	for i, v in pairs(hum:GetPlayingAnimationTracks()) do
-    		v:Stop()
-    	end
-    end
-    local cl = c:Clone()
-    if hum and humState16 then
-        hum:ChangeState(Enum.HumanoidStateType.Physics)
-        if destroyhum then
-            wait(1.6)
-        end
-    end
-    if hum and hum.Parent and destroyhum then
-        hum:Destroy()
-    end
-    
-    if not c then
-        return
-    end
-    
-    local head = gp(c, "Head", "BasePart")
-    local torso = gp(c, "Torso", "BasePart") or gp(c, "UpperTorso", "BasePart")
-    local root = gp(c, "HumanoidRootPart", "BasePart")
-    if hatcollide and c:FindFirstChildOfClass("Accessory") then
-        local anything = c:FindFirstChildOfClass("BodyColors") or gp(c, "Health", "Script")
-        if not (torso and root and anything) then
-            return
-        end
-        torso:Destroy()
-        root:Destroy()
-        if shp then
-            for i,v in pairs(c:GetChildren()) do
-                if v:IsA("Accessory") then
-                    shp(v, "BackendAccoutrementState", 0)
-                end 
-            end
-        end
-        anything:Destroy()
-    end
-    
-    local model = Instance.new("Model", c)
-    model.Name = model.ClassName
-    
-    model:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not (model and model.Parent) then
-    	    model = nil
-        end
-    end)
-    
-    for i, v in pairs(c:GetChildren()) do
-    	if v ~= model then
-    		if addtools and v:IsA("Tool") then
-    			for i1, v1 in pairs(v:GetDescendants()) do
-    				if v1 and v1.Parent and v1:IsA("BasePart") then
-    					local bv = Instance.new("BodyVelocity", v1)
-    					bv.Velocity = v3_0
-    					bv.MaxForce = v3(1000, 1000, 1000)
-    					bv.P = 1250
-    					bv.Name = "bv_" .. v.Name
-    				end
-    			end
-    		end
-    		v.Parent = model
-    	end
-    end
-    
-    if breakjoints then
-    	model:BreakJoints()
-    else
-    	if head and torso then
-    		for i, v in pairs(model:GetDescendants()) do
-    			if v:IsA("Weld") or v:IsA("Snap") or v:IsA("Glue") or v:IsA("Motor") or v:IsA("Motor6D") then
-    				local save = false
-    				if (v.Part0 == torso) and (v.Part1 == head) then
-    					save = true
-    				end
-    				if (v.Part0 == head) and (v.Part1 == torso) then
-    					save = true
-    				end
-    				if save then
-    					if hedafterneck then
-    						hedafterneck = v
-    					end
-    				else
-    					v:Destroy()
-    				end
-    			end
-    		end
-    	end
-    	if method == 3 then
-    		spawn(function()
-    			wait(loadtime)
-    			if model then
-    				model:BreakJoints()
-    			end
-    		end)
-    	end
-    end
-    
-    cl.Parent = c
-    for i, v in pairs(cl:GetChildren()) do
-    	v.Parent = c
-    end
-    cl:Destroy()
-    
-    local noclipmodel = (noclipAllParts and c) or model
-    local noclipcon = nil
-    local function uncollide()
-    	if noclipmodel then
-    		for i, v in pairs(noclipmodel:GetDescendants()) do
-    		    if v:IsA("BasePart") then
-    			    v.CanCollide = false
-    		    end
-    		end
-    	else
-    		noclipcon:Disconnect()
-    	end
-    end
-    noclipcon = stepped:Connect(uncollide)
-    uncollide()
-    
-    for i, scr in pairs(model:GetDescendants()) do
-    	if (scr.ClassName == "Script") and table.find(scriptNames, scr.Name) then
-    		local Part0 = scr.Parent
-    		if Part0:IsA("BasePart") then
-    			for i1, scr1 in pairs(c:GetDescendants()) do
-    				if (scr1.ClassName == "Script") and (scr1.Name == scr.Name) and (not scr1:IsDescendantOf(model)) then
-    					local Part1 = scr1.Parent
-    					if (Part1.ClassName == Part0.ClassName) and (Part1.Name == Part0.Name) then
-    						align(Part0, Part1)
-    						scr:Destroy()
-    						scr1:Destroy()
-    						break
-    					end
-    				end
-    			end
-    		end
-    	end
-    end
-    
-    for i, v in pairs(c:GetDescendants()) do
-    	if v and v.Parent and (not v:IsDescendantOf(model)) then
-    		if v:IsA("Decal") then
-    		    v.Transparency = 1
-    		elseif v:IsA("BasePart") then
-    			v.Transparency = 1
-    			v.Anchored = false
-    		elseif v:IsA("ForceField") then
-    			v.Visible = false
-    		elseif v:IsA("Sound") then
-    			v.Playing = false
-    		elseif v:IsA("BillboardGui") or v:IsA("SurfaceGui") or v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") then
-    			v.Enabled = false
-    		end
-    	end
-    end
-    
-    if newanimate then
-    	local animate = gp(c, "Animate", "LocalScript")
-    	if animate then
-    		animate.Disabled = false
-    	end
-    end
-    
-    if addtools then
-    	for i, v in pairs(c:GetChildren()) do
-    		if v:IsA("Tool") then
-    			v.Parent = addtools
-    		end
-    	end
-    end
-    
-    local hum0 = model:FindFirstChildOfClass("Humanoid")
-    if hum0 then
-        hum0:GetPropertyChangedSignal("Parent"):Connect(function()
-            if not (hum0 and hum0.Parent) then
-                hum0 = nil
-            end
-        end)
-    end
-    
-    local hum1 = c:FindFirstChildOfClass("Humanoid")
-    if hum1 then
-        hum1:GetPropertyChangedSignal("Parent"):Connect(function()
-            if not (hum1 and hum1.Parent) then
-                hum1 = nil
-            end
-        end)
-        
-    	ws.CurrentCamera.CameraSubject = hum1
-    	local camSubCon = nil
-    	local function camSubFunc()
-    		camSubCon:Disconnect()
-    		if c and hum1 then
-    			ws.CurrentCamera.CameraSubject = hum1
-    		end
-    	end
-    	camSubCon = renderstepped:Connect(camSubFunc)
-    	if hum0 then
-    		hum0:GetPropertyChangedSignal("Jump"):Connect(function()
-    			if hum1 then
-    				hum1.Jump = hum0.Jump
-    			end
-    		end)
-    	else
-    		respawnrequest()
-    	end
-    end
-    
-    local rb = Instance.new("BindableEvent", c)
-    rb.Event:Connect(function()
-    	rb:Destroy()
-    	sg:SetCore("ResetButtonCallback", true)
-    	if destroyhum then
-    		c:BreakJoints()
-    		return
-    	end
-    	if hum0 and (hum0.Health > 0) then
-    		model:BreakJoints()
-    		hum0.Health = 0
-    	end
-    	if antirespawn then
-    	    respawnrequest()
-    	end
-    end)
-    sg:SetCore("ResetButtonCallback", rb)
-    
-    spawn(function()
-    	while c do
-    		if hum0 and hum1 then
-    			hum1.Jump = hum0.Jump
-    		end
-    		wait()
-    	end
-    	sg:SetCore("ResetButtonCallback", true)
-    end)
-    
-    R15toR6 = R15toR6 and hum1 and (hum1.RigType == Enum.HumanoidRigType.R15)
-    if R15toR6 then
-        local part = gp(c, "HumanoidRootPart", "BasePart") or gp(c, "UpperTorso", "BasePart") or gp(c, "LowerTorso", "BasePart") or gp(c, "Head", "BasePart") or c:FindFirstChildWhichIsA("BasePart")
-    	if part then
-    	    local cfr = part.CFrame
-    		local R6parts = { 
-    			head = {
-    				Name = "Head",
-    				Size = v3(2, 1, 1),
-    				R15 = {
-    					Head = 0
-    				}
-    			},
-    			torso = {
-    				Name = "Torso",
-    				Size = v3(2, 2, 1),
-    				R15 = {
-    					UpperTorso = 0.2,
-    					LowerTorso = -0.8
-    				}
-    			},
-    			root = {
-    				Name = "HumanoidRootPart",
-    				Size = v3(2, 2, 1),
-    				R15 = {
-    					HumanoidRootPart = 0
-    				}
-    			},
-    			leftArm = {
-    				Name = "Left Arm",
-    				Size = v3(1, 2, 1),
-    				R15 = {
-    					LeftHand = -0.85,
-    					LeftLowerArm = -0.2,
-    					LeftUpperArm = 0.4
-    				}
-    			},
-    			rightArm = {
-    				Name = "Right Arm",
-    				Size = v3(1, 2, 1),
-    				R15 = {
-    					RightHand = -0.85,
-    					RightLowerArm = -0.2,
-    					RightUpperArm = 0.4
-    				}
-    			},
-    			leftLeg = {
-    				Name = "Left Leg",
-    				Size = v3(1, 2, 1),
-    				R15 = {
-    					LeftFoot = -0.85,
-    					LeftLowerLeg = -0.15,
-    					LeftUpperLeg = 0.6
-    				}
-    			},
-    			rightLeg = {
-    				Name = "Right Leg",
-    				Size = v3(1, 2, 1),
-    				R15 = {
-    					RightFoot = -0.85,
-    					RightLowerLeg = -0.15,
-    					RightUpperLeg = 0.6
-    				}
-    			}
-    		}
-    		for i, v in pairs(c:GetChildren()) do
-    			if v:IsA("BasePart") then
-    				for i1, v1 in pairs(v:GetChildren()) do
-    					if v1:IsA("Motor6D") then
-    						v1.Part0 = nil
-    					end
-    				end
-    			end
-    		end
-    		part.Archivable = true
-    		for i, v in pairs(R6parts) do
-    			local part = part:Clone()
-    			part:ClearAllChildren()
-    			part.Name = v.Name
-    			part.Size = v.Size
-    			part.CFrame = cfr
-    			part.Anchored = false
-    			part.Transparency = 1
-    			part.CanCollide = false
-    			for i1, v1 in pairs(v.R15) do
-    				local R15part = gp(c, i1, "BasePart")
-    				local att = gp(R15part, "att1_" .. i1, "Attachment")
-    				if R15part then
-    					local weld = Instance.new("Weld", R15part)
-    					weld.Name = "Weld_" .. i1
-    					weld.Part0 = part
-    					weld.Part1 = R15part
-    					weld.C0 = cf(0, v1, 0)
-    					weld.C1 = cf(0, 0, 0)
-    					R15part.Massless = true
-    					R15part.Name = "R15_" .. i1
-    					R15part.Parent = part
-    					if att then
-    						att.Parent = part
-    						att.Position = v3(0, v1, 0)
-    					end
-    				end
-    			end
-    			part.Parent = c
-    			R6parts[i] = part
-    		end
-    		local R6joints = {
-    			neck = {
-    				Parent = R6parts.torso,
-    				Name = "Neck",
-    				Part0 = R6parts.torso,
-    				Part1 = R6parts.head,
-    				C0 = cf(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0),
-    				C1 = cf(0, -0.5, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
-    			},
-    			rootJoint = {
-    				Parent = R6parts.root,
-    				Name = "RootJoint" ,
-    				Part0 = R6parts.root,
-    				Part1 = R6parts.torso,
-    				C0 = cf(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0),
-    				C1 = cf(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
-    			},
-    			rightShoulder = {
-    				Parent = R6parts.torso,
-    				Name = "Right Shoulder",
-    				Part0 = R6parts.torso,
-    				Part1 = R6parts.rightArm,
-    				C0 = cf(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0),
-    				C1 = cf(-0.5, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
-    			},
-    			leftShoulder = {
-    				Parent = R6parts.torso,
-    				Name = "Left Shoulder",
-    				Part0 = R6parts.torso,
-    				Part1 = R6parts.leftArm,
-    				C0 = cf(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
-    				C1 = cf(0.5, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
-    			},
-    			rightHip = {
-    				Parent = R6parts.torso,
-    				Name = "Right Hip",
-    				Part0 = R6parts.torso,
-    				Part1 = R6parts.rightLeg,
-    				C0 = cf(1, -1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0),
-    				C1 = cf(0.5, 1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
-    			},
-    			leftHip = {
-    				Parent = R6parts.torso,
-    				Name = "Left Hip" ,
-    				Part0 = R6parts.torso,
-    				Part1 = R6parts.leftLeg,
-    				C0 = cf(-1, -1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
-    				C1 = cf(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
-    			}
-    		}
-    		for i, v in pairs(R6joints) do
-    			local joint = Instance.new("Motor6D")
-    			for prop, val in pairs(v) do
-    				joint[prop] = val
-    			end
-    			R6joints[i] = joint
-    		end
-    		if hum1 then
-        		hum1.RigType = Enum.HumanoidRigType.R6
-        		hum1.HipHeight = 0
-    		end
-    	end
-    end
-    
-    local torso1 = torso
-    torso = gp(c, "Torso", "BasePart") or ((not R15toR6) and gp(c, torso.Name, "BasePart"))
-    if (typeof(hedafterneck) == "Instance") and head and torso and torso1 then
-    	local conNeck = nil
-    	local conTorso = nil
-    	local contorso1 = nil
-    	local aligns = {}
-    	local function enableAligns()
-    	    conNeck:Disconnect()
-            conTorso:Disconnect()
-            conTorso1:Disconnect()
-    		for i, v in pairs(aligns) do
-    			v.Enabled = true
-    		end
-    	end
-    	conNeck = hedafterneck.Changed:Connect(function(prop)
-    	    if table.find({"Part0", "Part1", "Parent"}, prop) then
-    	        enableAligns()
-    		end
-    	end)
-    	conTorso = torso:GetPropertyChangedSignal("Parent"):Connect(enableAligns)
-    	conTorso1 = torso1:GetPropertyChangedSignal("Parent"):Connect(enableAligns)
-    	for i, v in pairs(head:GetDescendants()) do
-    		if v:IsA("AlignPosition") or v:IsA("AlignOrientation") then
-    			i = tostring(i)
-    			aligns[i] = v
-    			v:GetPropertyChangedSignal("Parent"):Connect(function()
-    			    aligns[i] = nil
-    			end)
-    			v.Enabled = false
-    		end
-    	end
-    end
-    
-    --[[
-        fling function
-        usage: fling(target, duration, velocity)
-        target can be set to: basePart, CFrame, Vector3, character model or humanoid
-        duration (fling time) can be set to a number or a string containing the number (in seconds) will be set to 0.5 if not provided,
-        velocity (fling part rotation velocity) can be set to a vector3 value (Vector3.new(20000, 20000, 20000) if not provided)
-    ]]
-    
-    local flingpart0 = gp(model, flingpart, "BasePart")
-    local flingpart1 = gp(c, flingpart, "BasePart")
-    
-    local fling = function() end
-    if flingpart0 and flingpart1 then
-        flingpart0:GetPropertyChangedSignal("Parent"):Connect(function()
-            if not (flingpart0 and flingpart0.Parent) then
-                flingpart0 = nil
-                fling = function() end
-            end
-        end)
-        flingpart0.Archivable = true
-        flingpart1:GetPropertyChangedSignal("Parent"):Connect(function()
-            if not (flingpart1 and flingpart1.Parent) then
-                flingpart1 = nil
-                fling = function() end
-            end
-        end)
-        local att0 = gp(flingpart0, "att0_" .. flingpart0.Name, "Attachment")
-        local att1 = gp(flingpart1, "att1_" .. flingpart1.Name, "Attachment")
-        if att0 and att1 then
-            att0:GetPropertyChangedSignal("Parent"):Connect(function()
-                if not (att0 and att0.Parent) then
-                    att0 = nil
-                    fling = function() end
-                end
-            end)
-            att1:GetPropertyChangedSignal("Parent"):Connect(function()
-                if not (att1 and att1.Parent) then
-                    att1 = nil
-                    fling = function() end
-                end
-            end)
-            local lastfling = nil
-            fling = function(target, duration, rotVelocity)
-                if typeof(target) == "Instance" then
-                    if target:IsA("BasePart") then
-                        target = target.Position
-                    elseif target:IsA("Model") then
-                        target = gp(target, "HumanoidRootPart", "BasePart") or gp(target, "Torso", "BasePart") or gp(target, "UpperTorso", "BasePart") or target:FindFirstChildWhichIsA("BasePart")
-                        if target then
-                            target = target.Position
-                        else
-                            return
-                        end
-                    elseif target:IsA("Humanoid") then
-                        local parent = target.Parent
-                        if not (parent and parent:IsA("Model")) then
-                            return
-                        end
-                        target = gp(target, "HumanoidRootPart", "BasePart") or gp(target, "Torso", "BasePart") or gp(target, "UpperTorso", "BasePart") or target:FindFirstChildWhichIsA("BasePart")
-                        if target then
-                            target = target.Position
-                        else
-                            return
-                        end
-                    else
-                        return
-                    end
-                elseif typeof(target) == "CFrame" then
-                    target = target.Position
-                elseif typeof(target) ~= "Vector3" then
-                    return
-                end
-                lastfling = target
-                if type(duration) ~= "number" then
-                    duration = tonumber(duration) or 0.5
-                end
-                if typeof(rotVelocity) ~= "Vector3" then
-                    rotVelocity = v3(20000, 20000, 20000)
-                end
-                if not (target and flingpart0 and flingpart1 and att0 and att1) then
-                    return
-                end
-                local flingpart = flingpart0:Clone()
-                flingpart.Transparency = 1
-                flingpart.Size = v3(0.01, 0.01, 0.01)
-                flingpart.CanCollide = false
-                flingpart.Name = "flingpart_" .. flingpart0.Name
-                flingpart.Anchored = true
-                flingpart.Velocity = v3_0
-                flingpart.RotVelocity = v3_0
-                flingpart:GetPropertyChangedSignal("Parent"):Connect(function()
-                    if not (flingpart and flingpart.Parent) then
-                        flingpart = nil
-                    end
-                end)
-                flingpart.Parent = flingpart1
-                if flingpart0.Transparency > 0.5 then
-                    flingpart0.Transparency = 0.5
-                end
-                att1.Parent = flingpart
-                for i, v in pairs(att0:GetChildren()) do
-                    if v:IsA("AlignOrientation") then
-                        v.Enabled = false
-                    end
-                end
-                local con = nil
-                con = heartbeat:Connect(function()
-                    if target and (lastfling == target) and flingpart and flingpart0 and flingpart1 and att0 and att1 then
-                        flingpart0.RotVelocity = rotVelocity
-                        flingpart.Position = target
-                    else
-                        con:Disconnect()
-                    end
-                end)
-                local rsteppedRotVel = v3(
-                    ((rotVelocity.X > 0) and -1) or 1,
-                    ((rotVelocity.Y > 0) and -1) or 1,
-                    ((rotVelocity.Z > 0) and -1) or 1
-                )
-                local con = nil
-                con = renderstepped:Connect(function()
-                    if target and (lastfling == target) and flingpart and flingpart0 and flingpart1 and att0 and att1 then
-                        flingpart0.RotVelocity = rsteppedRotVel
-                        flingpart.Position = target
-                    else
-                        con:Disconnect()
-                    end
-                end)
-                wait(duration)
-                if lastfling ~= target then
-                    if flingpart then
-                        if att1 and (att1.Parent == flingpart) then
-                            att1.Parent = flingpart1
-                        end
-                        flingpart:Destroy()
-                    end
-                    return
-                end
-                target = nil
-                if not (flingpart and flingpart0 and flingpart1 and att0 and att1) then
-                    return
-                end
-                flingpart0.RotVelocity = v3_0
-                att1.Parent = flingpart1
-                for i, v in pairs(att0:GetChildren()) do
-                    if v:IsA("AlignOrientation") then
-                        v.Enabled = true
-                    end
-                end
-                if flingpart then
-                    flingpart:Destroy()
-                end
-            end
-        end
-    end
+end 
+ 
+function QuaternionFromCFrame(cf) 
+local mx, my, mz, m00, m01, m02, m10, m11, m12, m20, m21, m22 = cf:components() 
+local trace = m00 + m11 + m22 
+if trace > 0 then 
+local s = math.sqrt(1 + trace) 
+local recip = 0.5/s 
+return (m21-m12)*recip, (m02-m20)*recip, (m10-m01)*recip, s*0.5 
+else 
+local i = 0 
+if m11 > m00 then
+i = 1
+end
+if m22 > (i == 0 and m00 or m11) then 
+i = 2 
+end 
+if i == 0 then 
+local s = math.sqrt(m00-m11-m22+1) 
+local recip = 0.5/s 
+return 0.5*s, (m10+m01)*recip, (m20+m02)*recip, (m21-m12)*recip 
+elseif i == 1 then 
+local s = math.sqrt(m11-m22-m00+1) 
+local recip = 0.5/s 
+return (m01+m10)*recip, 0.5*s, (m21+m12)*recip, (m02-m20)*recip 
+elseif i == 2 then 
+local s = math.sqrt(m22-m00-m11+1) 
+local recip = 0.5/s return (m02+m20)*recip, (m12+m21)*recip, 0.5*s, (m10-m01)*recip 
+end 
+end 
+end
+ 
+function QuaternionToCFrame(px, py, pz, x, y, z, w) 
+local xs, ys, zs = x + x, y + y, z + z 
+local wx, wy, wz = w*xs, w*ys, w*zs 
+local xx = x*xs 
+local xy = x*ys 
+local xz = x*zs 
+local yy = y*ys 
+local yz = y*zs 
+local zz = z*zs 
+return CFrame.new(px, py, pz,1-(yy+zz), xy - wz, xz + wy,xy + wz, 1-(xx+zz), yz - wx, xz - wy, yz + wx, 1-(xx+yy)) 
+end
+ 
+function QuaternionSlerp(a, b, t) 
+local cosTheta = a[1]*b[1] + a[2]*b[2] + a[3]*b[3] + a[4]*b[4] 
+local startInterp, finishInterp; 
+if cosTheta >= 0.0001 then 
+if (1 - cosTheta) > 0.0001 then 
+local theta = math.acos(cosTheta) 
+local invSinTheta = 1/math.sin(theta) 
+startInterp = math.sin((1-t)*theta)*invSinTheta 
+finishInterp = math.sin(t*theta)*invSinTheta  
+else 
+startInterp = 1-t 
+finishInterp = t 
+end 
+else 
+if (1+cosTheta) > 0.0001 then 
+local theta = math.acos(-cosTheta) 
+local invSinTheta = 1/math.sin(theta) 
+startInterp = math.sin((t-1)*theta)*invSinTheta 
+finishInterp = math.sin(t*theta)*invSinTheta 
+else 
+startInterp = t-1 
+finishInterp = t 
+end 
+end 
+return a[1]*startInterp + b[1]*finishInterp, a[2]*startInterp + b[2]*finishInterp, a[3]*startInterp + b[3]*finishInterp, a[4]*startInterp + b[4]*finishInterp 
 end
 
-local lp = game:GetService("Players").LocalPlayer
-
-local c = lp.Character
-if not (c and c.Parent) then
-	return print("character not found")
-end
-c:GetPropertyChangedSignal("Parent"):Connect(function()
-    if not (c and c.Parent) then
-        c = nil
-    end
-end)
-
---getPart function
-
-local function gp(parent, name, className)
-	local ret = nil
-	pcall(function()
-		for i, v in pairs(parent:GetChildren()) do
-			if (v.Name == name) and v:IsA(className) then
-				ret = v
-				break
-			end
-		end
-	end)
-	return ret
+local function CFrameFromTopBack(at, top, back)
+local right = top:Cross(back)
+return CFrame.new(at.x, at.y, at.z,
+right.x, top.x, back.x,
+right.y, top.y, back.y,
+right.z, top.z, back.z)
 end
 
---check if reanimate loaded
-
-local model = gp(c, "Model", "Model")
-if not model then return print("model not found") end
-
---find body parts
-
-local head = gp(c, "Head", "BasePart")
-if not head then return print("head not found") end
-
-local torso = gp(c, "Torso", "BasePart")
-if not torso then return print("torso not found") end
-
-local humanoidRootPart = gp(c, "HumanoidRootPart", "BasePart")
-if not humanoidRootPart then return print("humanoid root part not found") end
-
-local leftArm = gp(c, "Left Arm", "BasePart")
-if not leftArm then return print("left arm not found") end
-
-local rightArm = gp(c, "Right Arm", "BasePart")
-if not rightArm then return print("right arm not found") end
-
-local leftLeg = gp(c, "Left Leg", "BasePart")
-if not leftLeg then return print("left leg not found") end
-
-local rightLeg = gp(c, "Right Leg", "BasePart")
-if not rightLeg then return print("right leg not found") end
-
---find rig joints
-
-local neck = gp(torso, "Neck", "Motor6D")
-if not neck then return print("neck not found") end
-
-local rootJoint = gp(humanoidRootPart, "RootJoint", "Motor6D")
-if not rootJoint then return print("root joint not found") end
-
-local leftShoulder = gp(torso, "Left Shoulder", "Motor6D")
-if not leftShoulder then return print("left shoulder not found") end
-
-local rightShoulder = gp(torso, "Right Shoulder", "Motor6D")
-if not rightShoulder then return print("right shoulder not found") end
-
-local leftHip = gp(torso, "Left Hip", "Motor6D")
-if not leftHip then return print("left hip not found") end
-
-local rightHip = gp(torso, "Right Hip", "Motor6D")
-if not rightHip then return print("right hip not found") end
-
---humanoid
-
-local hum = c:FindFirstChildOfClass("Humanoid")
-if not hum then return print("humanoid not found") end
-
-local animate = gp(c, "Animate", "LocalScript")
-if animate then
-	animate.Disabled = true
+function Triangle(a, b, c)
+local edg1 = (c-a):Dot((b-a).unit)
+local edg2 = (a-b):Dot((c-b).unit)
+local edg3 = (b-c):Dot((a-c).unit)
+if edg1 <= (b-a).magnitude and edg1 >= 0 then
+a, b, c = a, b, c
+elseif edg2 <= (c-b).magnitude and edg2 >= 0 then
+a, b, c = b, c, a
+elseif edg3 <= (a-c).magnitude and edg3 >= 0 then
+a, b, c = c, a, b
+else
+assert(false, "unreachable")
 end
+ 
+local len1 = (c-a):Dot((b-a).unit)
+local len2 = (b-a).magnitude - len1
+local width = (a + (b-a).unit*len1 - c).magnitude
+ 
+local maincf = CFrameFromTopBack(a, (b-a):Cross(c-b).unit, -(b-a).unit)
+ 
+local list = {}
+ 
+if len1 > 0.01 then
+local w1 = Instance.new('WedgePart', m)
+game:GetService("Debris"):AddItem(w1,5)
+w1.Material = "SmoothPlastic"
+w1.FormFactor = 'Custom'
+w1.BrickColor = BrickColor.new("Really red")
+w1.Transparency = 0
+w1.Reflectance = 0
+w1.Material = "SmoothPlastic"
+w1.CanCollide = false
+local l1 = Instance.new("PointLight",w1)
+l1.Color = Color3.new(170,0,0)
+NoOutline(w1)
+local sz = Vector3.new(0.2, width, len1)
+w1.Size = sz
+local sp = Instance.new("SpecialMesh",w1)
+sp.MeshType = "Wedge"
+sp.Scale = Vector3.new(0,1,1) * sz/w1.Size
+w1:BreakJoints()
+w1.Anchored = true
+w1.Parent = workspace
+w1.Transparency = 0.7
+table.insert(Effects,{w1,"Disappear",.01})
+w1.CFrame = maincf*CFrame.Angles(math.pi,0,math.pi/2)*CFrame.new(0,width/2,len1/2)
+table.insert(list,w1)
+end
+ 
+if len2 > 0.01 then
+local w2 = Instance.new('WedgePart', m)
+game:GetService("Debris"):AddItem(w2,5)
+w2.Material = "SmoothPlastic"
+w2.FormFactor = 'Custom'
+w2.BrickColor = BrickColor.new("Really red")
+w2.Transparency = 0
+w2.Reflectance = 0
+w2.Material = "SmoothPlastic"
+w2.CanCollide = false
+local l2 = Instance.new("PointLight",w2)
+l2.Color = Color3.new(170,0,0)
+NoOutline(w2)
+local sz = Vector3.new(0.2, width, len2)
+w2.Size = sz
+local sp = Instance.new("SpecialMesh",w2)
+sp.MeshType = "Wedge"
+sp.Scale = Vector3.new(0,1,1) * sz/w2.Size
+w2:BreakJoints()
+w2.Anchored = true
+w2.Parent = workspace
+w2.Transparency = 0.7
+table.insert(Effects,{w2,"Disappear",.01})
+w2.CFrame = maincf*CFrame.Angles(math.pi,math.pi,-math.pi/2)*CFrame.new(0,width/2,-len1 - len2/2)
+table.insert(list,w2)
+end
+return unpack(list)
+end
+ 
 
-for i, v in pairs(hum:GetPlayingAnimationTracks()) do
-	v:Stop()
-end
-
-local fps = 60
-local sinechange = 40 / fps
-local event = Instance.new("BindableEvent", c)
-event.Name = "renderstepped"
-local floor = math.floor
-fps = 1 / fps
-local tf = 0
-local con = nil
-con = game:GetService("RunService").RenderStepped:Connect(function(s)
-	if not c then
-		con:Disconnect()
-		return
-	end
-	tf += s
-	if tf >= fps then
-		for i=1, floor(tf / fps) do
-		    tf -= fps
-			event:Fire(c)
-		end
-	end
-end)
-local event = event.Event
-
-local function stopIfRemoved(instance)
-    if not (instance and instance.Parent) then
-        c = nil
-        return
-    end
-    instance:GetPropertyChangedSignal("Parent"):Connect(function()
-        if not (instance and instance.Parent) then
-            c = nil
-        end
-    end)
-end
-stopIfRemoved(c)
-stopIfRemoved(hum)
-for i, v in pairs({head, torso, leftArm, rightArm, leftLeg, rightLeg, humanoidRootPart}) do
-    stopIfRemoved(v)
-end
-for i, v in pairs({neck, rootJoint, leftShoulder, rightShoulder, leftHip, rightHip}) do
-    stopIfRemoved(v)
-end
-if not c then
+function Damagefunc(Part, hit, minim, maxim, knockback, Type, Property, Delay, HitSound, HitPitch)
+  if hit.Parent == nil then
     return
-end
-local mode = false
-uis = game:GetService("UserInputService")
-local modes = {
-	[Enum.KeyCode.Q] = "lay",
-	[Enum.KeyCode.E] = "sit",
-	[Enum.KeyCode.R] = "russia",
-	[Enum.KeyCode.T] = "wave",
-	[Enum.KeyCode.Y] = "dab",
-	[Enum.KeyCode.U] = "dance",
-	[Enum.KeyCode.L] = "L",
-	[Enum.KeyCode.F] = "fly",
-	[Enum.KeyCode.G] = "floss"
-}
-uis.InputBegan:Connect(function(keycode)
-    if uis:GetFocusedTextBox() then
-        return
+  end
+  local h = hit.Parent:FindFirstChildOfClass("Humanoid")
+  for _, v in pairs(hit.Parent:children()) do
+    if v:IsA("Humanoid") then
+      h = v
     end
-	keycode = keycode.KeyCode
-	if modes[keycode] ~= nil then
-		if mode == modes[keycode] then
-			mode = nil
-		else
-			mode = modes[keycode]
-		end
+  end
+  if h ~= nil and hit.Parent.Name ~= Character.Name and hit.Parent:FindFirstChild("Torso") ~= nil or h ~= nil and hit.Parent.Name ~= Character.Name and hit.Parent:FindFirstChild("UpperTorso") ~= nil then
+    if hit.Parent:findFirstChild("DebounceHit") ~= nil and hit.Parent.DebounceHit.Value == true then
+      return
+    end
+    local c = Create("ObjectValue")({
+      Name = "creator",
+      Value = game:service("Players").LocalPlayer,
+      Parent = h
+    })
+    game:GetService("Debris"):AddItem(c, 0.5)
+    if HitSound ~= nil and HitPitch ~= nil then
+      CFuncs.Sound.Create(HitSound, hit, 1, HitPitch)
+    end
+    local Damage = math.random(minim, maxim)
+    local blocked = false
+    local block = hit.Parent:findFirstChild("Block")
+    if block ~= nil and block.className == "IntValue" and block.Value > 0 then
+      blocked = true
+      block.Value = block.Value - 1
+      print(block.Value)
+    end
+    if blocked == false then
+	DamageFling(hit.Parent)
+      if HitHealth ~= h.Health and HitHealth ~= 0 and 0 >= h.Health and h.Parent.Name ~= "Hologram" then
+        print("gained kill")
+      end
+      ShowDamage(Part.CFrame * CFrame.new(0, 0, Part.Size.Z / 2).p + Vector3.new(0, 1.5, 0), -Damage, 1.5, Part.BrickColor.Color)
+    else
+	DamageFling(hit.Parent)
+      ShowDamage(Part.CFrame * CFrame.new(0, 0, Part.Size.Z / 2).p + Vector3.new(0, 1.5, 0), -Damage, 1.5, Part.BrickColor.Color)
+    end
+    if Type == "Knockdown" then
+      local hum = hit.Parent.Humanoid
+      hum.PlatformStand = true
+      coroutine.resume(coroutine.create(function(HHumanoid)
+
+        HHumanoid.PlatformStand = true
+      end), hum)
+      local angle = hit.Position - (Property.Position + Vector3.new(0, 0, 0)).unit
+      local bodvol = Create("BodyVelocity")({
+        velocity = angle * knockback,
+        P = 5000,
+        maxForce = Vector3.new(8000, 8000, 8000),
+        Parent = hit
+      })
+      local rl = Create("BodyAngularVelocity")({
+        P = 3000,
+        maxTorque = Vector3.new(500000, 500000, 500000) * 50000000000000,
+        angularvelocity = Vector3.new(math.random(-10, 10), math.random(-10, 10), math.random(-10, 10)),
+        Parent = hit
+      })
+      game:GetService("Debris"):AddItem(bodvol, 0.5)
+      game:GetService("Debris"):AddItem(rl, 0.5)
+    elseif Type == "Normal" then
+      local vp = Create("BodyVelocity")({
+        P = 500,
+        maxForce = Vector3.new(math.huge, 0, math.huge),
+        velocity = Property.CFrame.lookVector * knockback + Property.Velocity / 1.05
+      })
+      if knockback > 0 then
+        vp.Parent = hit.Parent.Torso
+      end
+      game:GetService("Debris"):AddItem(vp, 0.5)
+    elseif Type == "Up" then
+      local bodyVelocity = Create("BodyVelocity")({
+        velocity = Vector3.new(0, 20, 0),
+        P = 5000,
+        maxForce = Vector3.new(8000, 8000, 8000),
+        Parent = hit
+      })
+      game:GetService("Debris"):AddItem(bodyVelocity, 0.5)
+      local bodyVelocity = Create("BodyVelocity")({
+        velocity = Vector3.new(0, 20, 0),
+        P = 5000,
+        maxForce = Vector3.new(8000, 8000, 8000),
+        Parent = hit
+      })
+      game:GetService("Debris"):AddItem(bodyVelocity, 1)
+    elseif Type == "Normal" then
+      local hum = hit.Parent.Humanoid
+      if hum ~= nil then
+        for i = 0, 2 do
+          Effects.Sphere.Create(BrickColor.new("Bright red"), hit.Parent.Torso.CFrame * cn(0, 0, 0) * angles(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50)), 1, 15, 1, 0, 5, 0, 0.02)
+        end
+      end
+    elseif Type == "UpKnock" then
+      local hum = hit.Parent.Humanoid
+      hum.PlatformStand = true
+      if hum ~= nil then
+        hitr = true
+      end
+      coroutine.resume(coroutine.create(function(HHumanoid)
+
+        HHumanoid.PlatformStand = false
+        hitr = false
+      end), hum)
+      local bodyVelocity = Create("BodyVelocity")({
+        velocity = Vector3.new(0, 20, 0),
+        P = 5000,
+        maxForce = Vector3.new(8000, 8000, 8000),
+        Parent = hit
+      })
+      game:GetService("Debris"):AddItem(bodyVelocity, 0.5)
+      local bodyVelocity = Create("BodyVelocity")({
+        velocity = Vector3.new(0, 20, 0),
+        P = 5000,
+        maxForce = Vector3.new(8000, 8000, 8000),
+        Parent = hit
+      })
+      game:GetService("Debris"):AddItem(bodyVelocity, 1)
+    elseif Type == "Snare" then
+      local bp = Create("BodyPosition")({
+        P = 2000,
+        D = 100,
+        maxForce = Vector3.new(math.huge, math.huge, math.huge),
+        position = hit.Parent.Torso.Position,
+        Parent = hit.Parent.Torso
+      })
+      game:GetService("Debris"):AddItem(bp, 1)
+    elseif Type == "Slashnare" then
+      Effects.Block.Create(BrickColor.new("Pastel Blue"), hit.Parent.Torso.CFrame * cn(0, 0, 0), 15*4, 15*4, 15*4, 3*4, 3*4, 3*4, 0.07)
+      for i = 1, math.random(4, 5) do
+        Effects.Sphere.Create(BrickColor.new("Teal"), hit.Parent.Torso.CFrame * cn(math.random(-5, 5), math.random(-5, 5), math.random(-5, 5)) * angles(math.random(-50, 50), math.random(-50, 50), math.random(-50, 50)), 1, 15, 1, 0, 5, 0, 0.02)
+      end
+      local bp = Create("BodyPosition")({
+        P = 2000,
+        D = 100,
+        maxForce = Vector3.new(math.huge, math.huge, math.huge),
+        position = hit.Parent.Torso.Position,
+        Parent = hit.Parent.Torso
+      })
+      game:GetService("Debris"):AddItem(bp, 1)
+    elseif Type == "Spike" then
+      CreateBigIceSword(hit.Parent.Torso.CFrame)
+      local bp = Create("BodyPosition")({
+        P = 2000,
+        D = 100,
+        maxForce = Vector3.new(math.huge, math.huge, math.huge),
+        position = hit.Parent.Torso.Position,
+        Parent = hit.Parent.Torso
+      })
+      game:GetService("Debris"):AddItem(bp, 1)
+    elseif Type == "Normal" then
+      local BodPos = Create("BodyPosition")({
+        P = 50000,
+        D = 1000,
+        maxForce = Vector3.new(math.huge, math.huge, math.huge),
+        position = hit.Parent.Torso.Position,
+        Parent = hit.Parent.Torso
+      })
+      local BodGy = Create("BodyGyro")({
+        maxTorque = Vector3.new(400000, 400000, 400000) * math.huge,
+        P = 20000,
+        Parent = hit.Parent.Torso,
+        cframe = hit.Parent.Torso.CFrame
+      })
+      hit.Parent.Torso.Anchored = true
+      coroutine.resume(coroutine.create(function(Part)
+        Part.Anchored = false
+      end), hit.Parent.Torso)
+      game:GetService("Debris"):AddItem(BodPos, 3)
+      game:GetService("Debris"):AddItem(BodGy, 3)
+    end
+    local debounce = Create("BoolValue")({
+      Name = "DebounceHit",
+      Parent = hit.Parent,
+      Value = true
+    })
+    game:GetService("Debris"):AddItem(debounce, Delay)
+    c = Instance.new("ObjectValue")
+    c.Name = "creator"
+    c.Value = Player
+    c.Parent = h
+    game:GetService("Debris"):AddItem(c, 0.5)
+  end
+end
+function ShowDamage(Pos, Text, Time, Color)
+  local Rate = 0.1
+  local Pos = Pos or Vector3.new(0, 0, 0)
+  local Text = Text or ""
+  local Time = Time or 2
+  local Color = Color or Color3.new(1, 0, 1)
+  local EffectPart = CreatePart(workspace, "SmoothPlastic", 0, 1, BrickColor.new(Color), "Effect", Vector3.new(0, 0, 0))
+  EffectPart.Anchored = true
+  local BillboardGui = Create("BillboardGui")({
+    Size = UDim2.new(3, 0, 3, 0),
+    Adornee = EffectPart,
+    Parent = EffectPart
+  })
+  local TextLabel = Create("TextLabel")({
+    BackgroundTransparency = 1,
+    Size = UDim2.new(1, 0, 1, 0),
+    Text = Text,
+    TextColor3 = Color3.new(1,1,1),
+    TextStrokeColor3 = Color3.new(0,0,0),
+    TextStrokeTransparency = 0.25,
+    TextScaled = true,
+    Font = Enum.Font.Fantasy,
+    TextSize = 24,
+    Parent = BillboardGui
+  })
+  game.Debris:AddItem(EffectPart, Time + 0.1)
+  EffectPart.Parent = game:GetService("Workspace")
+  delay(0, function()
+    local Frames = Time / Rate
+    for Frame = 1, Frames do
+      swait(Rate)
+      local Percent = Frame / Frames
+      TextLabel.Text = Text
+      EffectPart.CFrame = CFrame.new(Pos) + Vector3.new(0, Percent*2, 0)
+    end
+    for Frame = 1, Frames do
+      swait(Rate)
+      local Percent = Frame / Frames
+      TextLabel.Text = Text
+    end
+    for Frame = 1, Frames do
+      swait(Rate)
+      local Percent = Frame / Frames
+      TextLabel.TextTransparency = Percent
+      TextLabel.Text = Text
+      TextLabel.TextStrokeTransparency = Percent
+    end
+    if EffectPart and EffectPart.Parent then
+      EffectPart:Destroy()
+    end
+  end)
+end
+function MagniDamage(Part, magni, mindam, maxdam, knock, Type,Sound)
+  for _, c in pairs(workspace:children()) do
+    local hum = c:findFirstChildOfClass("Humanoid")
+    if hum ~= nil then
+      local head = c:findFirstChild("Torso")
+      if head ~= nil then
+        local targ = head.Position - Part.Position
+        local mag = targ.magnitude
+        if magni >= mag and c.Name ~= Player.Name then
+          Damagefunc(head, head, mindam, maxdam, knock, Type, RootPart, 0.1, "rbxassetid://" ..Sound, 1)
+        end
+      end
+      local head = c:findFirstChild("UpperTorso")
+      if head ~= nil then
+        local targ = head.Position - Part.Position
+        local mag = targ.magnitude
+        if magni >= mag and c.Name ~= Player.Name then
+          Damagefunc(head, head, mindam, maxdam, knock, Type, RootPart, 0.1, "rbxassetid://" ..Sound, 1)
+        end
+      end
+    end
+  end
+end
+
+
+function rayCast(Pos, Dir, Max, Ignore)  -- Origin Position , Direction, MaxDistance , IgnoreDescendants
+return game:service("Workspace"):FindPartOnRay(Ray.new(Pos, Dir.unit * (Max or 999.999)), Ignore) 
+end 
+----
+
+function dmg(dude)
+if dude.Name ~= Character then
+local bgf = Instance.new("BodyGyro",dude.Head)
+bgf.CFrame = bgf.CFrame * CFrame.fromEulerAnglesXYZ(math.rad(-90),0,0)
+--[[local val = Instance.new("BoolValue",dude)
+val.Name = "IsHit"]]--
+local ds = coroutine.wrap(function()
+for i, v in pairs(dude:GetChildren()) do
+if v:IsA("Part") or v:IsA("MeshPart") then
+v.Name = "DEMINISHED"
+CFuncs["Sound"].Create("rbxassetid://763718160", v, 0.75, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", v, 1, 1)
+for i = 0, 1 do
+sphere2(1,"Add",v.CFrame*CFrame.Angles(math.rad(math.random(-360,360)),math.rad(math.random(-360,360)),math.rad(math.random(-360,360))),vt(1,1,1),-0.01,10,-0.01,BrickColor.new("Royal purple"),BrickColor.new("Royal purple").Color)
+end
+end
+end
+wait(0.5)
+targetted = nil
+CFuncs["Sound"].Create("rbxassetid://62339698", char, 0.25, 0.285)
+coroutine.resume(coroutine.create(function()
+for i, v in pairs(dude:GetChildren()) do
+if v:IsA("Accessory") then
+
+end
+if v:IsA("Humanoid") then
+
+end
+if v:IsA("CharacterMesh") then
+
+end
+if v:IsA("Model") then
+
+end
+if v:IsA("Part") or v:IsA("MeshPart") then
+for x, o in pairs(v:GetChildren()) do
+if o:IsA("Decal") then
+end
+end
+coroutine.resume(coroutine.create(function()
+v.Material = "Neon"
+v.CanCollide = false
+v.Anchored = false
+local bld = Instance.new("ParticleEmitter",v)
+bld.LightEmission = 1
+bld.Texture = "rbxassetid://363275192" ---284205403
+bld.Color = ColorSequence.new(BrickColor.new("Royal purple").Color)
+bld.Rate = 500
+bld.Lifetime = NumberRange.new(1)
+bld.Size = NumberSequence.new({NumberSequenceKeypoint.new(0,2,0),NumberSequenceKeypoint.new(0.8,2.25,0),NumberSequenceKeypoint.new(1,0,0)})
+bld.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0.5,0),NumberSequenceKeypoint.new(0.8,0.75,0),NumberSequenceKeypoint.new(1,1,0)})
+bld.Speed = NumberRange.new(2,5)
+bld.VelocitySpread = 50000
+bld.Rotation = NumberRange.new(-500,500)
+bld.RotSpeed = NumberRange.new(-500,500)
+local sbs = Instance.new("BodyPosition", v)
+sbs.P = 3000
+sbs.D = 1000
+sbs.maxForce = Vector3.new(50000000000, 50000000000, 50000000000)
+sbs.position = v.Position + Vector3.new(math.random(-2,2),10 + math.random(-2,2),math.random(-2,2))
+v.Color = BrickColor.new("Royal purple").Color
+coroutine.resume(coroutine.create(function()
+for i = 0, 49 do
+swait(1)
+end
+for i = 0, 4 do
+slash(math.random(10,50)/10,3,true,"Round","Add","Out",v.CFrame*CFrame.Angles(math.rad(math.random(-360,360)),math.rad(math.random(-360,360)),math.rad(math.random(-360,360))),vt(0.01,0.0025,0.01),math.random(10,100)/2500,BrickColor.new("White"))
+end
+block(1,"Add",v.CFrame,vt(0,0,0),0.1,0.1,0.1,BrickColor.new("Royal purple"),BrickColor.new("Royal purple").Color)
+CFuncs["Sound"].Create("rbxassetid://782353117", v, 0.25, 1.2)
+CFuncs["Sound"].Create("rbxassetid://1192402877", v, 0.5, 0.75)
+bld.Speed = NumberRange.new(10,25)
+bld.Drag = 5
+bld.Acceleration = vt(0,2,0)
+wait(0.5)
+bld.Enabled = false
+wait(4)
+coroutine.resume(coroutine.create(function()
+for i = 0, 99 do
+swait()
+end
+end))
+end))
+end))
+end
+end
+end))
+end)
+ds()
+end
+end
+
+function sphere(bonuspeed,type,pos,scale,value,color)
+local type = type
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "Sphere"
+rngm.Scale = scale
+if rainbowmode == true then
+rng.Color = Color3.new(r/255,g/255,b/255)
+end
+local scaler2 = 1
+if type == "Add" then
+scaler2 = 1*value
+elseif type == "Divide" then
+scaler2 = 1/value
+end
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if rainbowmode == true then
+rng.Color = Color3.new(r/255,g/255,b/255)
+end
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed
+end
+if chaosmode == true then
+rng.BrickColor = BrickColor.random()
+end
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed, scaler2*bonuspeed, scaler2*bonuspeed)
+end
+rng:Destroy()
+end))
+end
+
+function sphere2(bonuspeed,type,pos,scale,value,value2,value3,color,color3)
+local type = type
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.Color = color3
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "Sphere"
+rngm.Scale = scale
+local scaler2 = 1
+local scaler2b = 1
+local scaler2c = 1
+if type == "Add" then
+scaler2 = 1*value
+scaler2b = 1*value2
+scaler2c = 1*value3
+elseif type == "Divide" then
+scaler2 = 1/value
+scaler2b = 1/value2
+scaler2c = 1/value3
+end
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed
+scaler2b = scaler2b - 0.01*value/bonuspeed
+scaler2c = scaler2c - 0.01*value/bonuspeed
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed
+scaler2b = scaler2b - 0.01/value*bonuspeed
+scaler2c = scaler2c - 0.01/value*bonuspeed
+end
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed, scaler2b*bonuspeed, scaler2c*bonuspeed)
+end
+rng:Destroy()
+end))
+end
+
+function block(bonuspeed,type,pos,scale,value,value2,value3,color,color3)
+local type = type
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.Color = color3
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "Brick"
+rngm.Scale = scale
+local scaler2 = 1
+local scaler2b = 1
+local scaler2c = 1
+if type == "Add" then
+scaler2 = 1*value
+scaler2b = 1*value2
+scaler2c = 1*value3
+elseif type == "Divide" then
+scaler2 = 1/value
+scaler2b = 1/value2
+scaler2c = 1/value3
+end
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed
+scaler2b = scaler2b - 0.01*value/bonuspeed
+scaler2c = scaler2c - 0.01*value/bonuspeed
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed
+scaler2b = scaler2b - 0.01/value*bonuspeed
+scaler2c = scaler2c - 0.01/value*bonuspeed
+end
+rng.CFrame = rng.CFrame*CFrame.Angles(math.rad(math.random(-360,360)),math.rad(math.random(-360,360)),math.rad(math.random(-360,360)))
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed, scaler2b*bonuspeed, scaler2c*bonuspeed)
+end
+rng:Destroy()
+end))
+end
+
+function sphereMK(bonuspeed,FastSpeed,type,pos,x1,y1,z1,value,color,color3,outerpos)
+local type = type
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.Color = color3
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+rng.CFrame = rng.CFrame + rng.CFrame.lookVector*outerpos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "Sphere"
+rngm.Scale = vt(x1,y1,z1)
+if rainbowmode == true then
+rng.Color = Color3.new(r/255,g/255,b/255)
+end
+local scaler2 = 1
+local speeder = FastSpeed
+if type == "Add" then
+scaler2 = 1*value
+elseif type == "Divide" then
+scaler2 = 1/value
+end
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if rainbowmode == true then
+rng.Color = Color3.new(r/255,g/255,b/255)
+end
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed
+end
+if chaosmode == true then
+rng.BrickColor = BrickColor.random()
+end
+speeder = speeder - 0.01*FastSpeed*bonuspeed
+rng.CFrame = rng.CFrame + rng.CFrame.lookVector*speeder*bonuspeed
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed, scaler2*bonuspeed, 0)
+end
+rng:Destroy()
+end))
+end
+
+function waveEff(bonuspeed,type,typeoftrans,pos,scale,value,value2,color)
+local type = type
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+if typeoftrans == "In" then
+rng.Transparency = 1
+end
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "FileMesh"
+rngm.MeshId = "rbxassetid://20329976"
+rngm.Scale = scale
+local scaler2 = 1
+local scaler2b = 1
+if type == "Add" then
+scaler2 = 1*value
+scaler2b = 1*value2
+elseif type == "Divide" then
+scaler2 = 1/value
+scaler2b = 1/value2
+end
+local randomrot = math.random(1,2)
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed
+scaler2b = scaler2b - 0.01*value/bonuspeed
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed
+scaler2b = scaler2b - 0.01/value*bonuspeed
+end
+if randomrot == 1 then
+rng.CFrame = rng.CFrame*CFrame.Angles(0,math.rad(5*bonuspeed/2),0)
+elseif randomrot == 2 then
+rng.CFrame = rng.CFrame*CFrame.Angles(0,math.rad(-5*bonuspeed/2),0)
+end
+if typeoftrans == "Out" then
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+elseif typeoftrans == "In" then
+rng.Transparency = rng.Transparency - 0.01*bonuspeed
+end
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed, scaler2b*bonuspeed, scaler2*bonuspeed)
+end
+rng:Destroy()
+end))
+end
+
+function slash(bonuspeed,rotspeed,rotatingop,typeofshape,type,typeoftrans,pos,scale,value,color)
+local type = type
+local rotenable = rotatingop
+local rng = Instance.new("Part", char)
+        rng.Anchored = true
+        rng.BrickColor = color
+        rng.CanCollide = false
+        rng.FormFactor = 3
+        rng.Name = "Ring"
+        rng.Material = "Neon"
+        rng.Size = Vector3.new(1, 1, 1)
+        rng.Transparency = 0
+if typeoftrans == "In" then
+rng.Transparency = 1
+end
+        rng.TopSurface = 0
+        rng.BottomSurface = 0
+        rng.CFrame = pos
+        local rngm = Instance.new("SpecialMesh", rng)
+        rngm.MeshType = "FileMesh"
+if typeofshape == "Normal" then
+rngm.MeshId = "rbxassetid://662586858"
+elseif typeofshape == "Round" then
+rngm.MeshId = "rbxassetid://662585058"
+end
+rngm.Scale = scale
+local scaler2 = 1/10
+if type == "Add" then
+scaler2 = 1*value/10
+elseif type == "Divide" then
+scaler2 = 1/value/10
+end
+local randomrot = math.random(1,2)
+coroutine.resume(coroutine.create(function()
+for i = 0,10/bonuspeed,0.1 do
+swait()
+if type == "Add" then
+scaler2 = scaler2 - 0.01*value/bonuspeed/10
+elseif type == "Divide" then
+scaler2 = scaler2 - 0.01/value*bonuspeed/10
+end
+if rotenable == true then
+if randomrot == 1 then
+rng.CFrame = rng.CFrame*CFrame.Angles(0,math.rad(rotspeed*bonuspeed/2),0)
+elseif randomrot == 2 then
+rng.CFrame = rng.CFrame*CFrame.Angles(0,math.rad(-rotspeed*bonuspeed/2),0)
+end
+end
+if typeoftrans == "Out" then
+rng.Transparency = rng.Transparency + 0.01*bonuspeed
+elseif typeoftrans == "In" then
+rng.Transparency = rng.Transparency - 0.01*bonuspeed
+end
+rngm.Scale = rngm.Scale + Vector3.new(scaler2*bonuspeed/10, 0, scaler2*bonuspeed/10)
+end
+rng:Destroy()
+end))
+end
+
+rarmor.Attachment.Name = "Attachment2"
+function FindNearestTorso(Position, Distance, SinglePlayer)
+	if SinglePlayer then
+		return (SinglePlayer.Torso.CFrame.p - Position).magnitude < Distance
 	end
+	local List = {}
+	for i, v in pairs(workspace:GetChildren()) do
+		if v:IsA("Model") then
+			if v:findFirstChild("Torso") or v:findFirstChild("UpperTorso") then
+				if v ~= Character then
+					if (v.Head.Position - Position).magnitude <= Distance then
+						table.insert(List, v)
+					end 
+				end 
+			end 
+		end 
+	end
+	return List
+end
+
+
+local dashing = false
+local floatmode = false
+local OWS = hum.WalkSpeed
+local equipped = false
+Instance.new("ForceField",char).Visible = false
+Humanoid.Animator.Parent = nil
+------------------
+function equip()
+	attack = true
+	equipped = true
+	hum.WalkSpeed = 0
+tl1.Enabled = true
+for i = 0, 9 do
+end
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 2.5, 1.25)
+CFuncs["Sound"].Create("rbxassetid://200633077", rarmor, 1, 1)
+CFuncs["Sound"].Create("rbxassetid://169380495", rarmor, 0.5, 1.1)
+	for i = 0, 2, 0.1 do
+		swait()
+hum.CameraOffset = vt(math.random(-5,5)/50,math.random(-5,5)/50,math.random(-5,5)/50)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(10),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0)*angles(math.rad(0),math.rad(0),math.rad(-10)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(-20)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(-20),math.rad(-30),math.rad(130)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(-13),math.rad(10),math.rad(-10)),.3)
+end
+hum.CameraOffset = vt(0,0,0)
+weaponweld.Part0 = rarm
+for i = 0, 2, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-40),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(1),math.rad(5)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.1,0)*angles(math.rad(0),math.rad(0),math.rad(40)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(-40)),.3)
+RW.C0=clerp(RW.C0,cf(1.25,0.5,-0.65)*angles(math.rad(100),math.rad(0),math.rad(-23)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(110),math.rad(0),math.rad(-85)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*4
+MagniDamage(hitb, 4, 40,73, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://200633196", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 1.5, 1.025)
+CFuncs["Sound"].Create("rbxassetid://234365549", rarmor, 1, 1)
+for i = 0, 2, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-20)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(50),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(-0.1,-0.25,0)*angles(math.rad(10),math.rad(0),math.rad(-50)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(50)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(80),math.rad(0),math.rad(70)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(100),math.rad(0),math.rad(-50)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+end
+hitb:Destroy()
+hum.WalkSpeed = Speed
+OWS = hum.WalkSpeed
+	attack = false
+end
+
+function unequip()
+	attack = true
+	equipped = false
+	hum.WalkSpeed = 0
+hum.WalkSpeed = 16
+OWS = hum.WalkSpeed
+tl1.Enabled = false
+CFuncs["Sound"].Create("rbxassetid://200633029", rarmor, 1, 1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.5)
+weaponweld.Part0 = tors
+	attack = false
+end
+
+------------------
+function attackone()
+attack = true
+hum.WalkSpeed = Speed
+for i = 0, 2, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-40),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(1),math.rad(5)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.1,0)*angles(math.rad(0),math.rad(0),math.rad(40)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(-40)),.3)
+RW.C0=clerp(RW.C0,cf(1.25,0.5,-0.65)*angles(math.rad(100),math.rad(0),math.rad(-23)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(110),math.rad(0),math.rad(-85)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*4
+MagniDamage(hitb, 4, 24,30, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://200633196", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 1.5, 1.025)
+CFuncs["Sound"].Create("rbxassetid://234365549", rarmor, 1, 1)
+for i = 0, 1, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-20)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(50),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(-0.1,-0.25,0)*angles(math.rad(10),math.rad(0),math.rad(-50)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(50)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(80),math.rad(0),math.rad(70)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(100),math.rad(0),math.rad(-50)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+end
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+end
+function attacktwo()
+attack = true
+hum.WalkSpeed = Speed
+for i = 0, 1, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(20),math.rad(5)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(-0.1,0.1,0)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(40)),.3)
+RW.C0=clerp(RW.C0,cf(1.25,0.5,-0.65)*angles(math.rad(100),math.rad(0),math.rad(-23)),.3)
+LW.C0=clerp(LW.C0,cf(-0.5,0.5,-0.25)*angles(math.rad(90),math.rad(0),math.rad(40)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(180),math.rad(0)),.3)
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*4
+MagniDamage(hitb, 4, 24,30, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://200633281", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://161006195", rarmor, 1.5, 1.025)
+for i = 0, 1, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-30),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.2,-0.25,0)*angles(math.rad(10),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(-90)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(80),math.rad(0),math.rad(20)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(100),math.rad(0),math.rad(-50)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(180),math.rad(70)),.3)
+end
+attack = false
+hum.WalkSpeed = Speed
+end
+function attackthree()
+attack = true
+hum.WalkSpeed = Speed
+for i = 0, 1, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-30),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(5)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(-0.1,0.1,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0)*angles(math.rad(-30),math.rad(0),math.rad(53)),.3)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0)*angles(math.rad(10),math.rad(0),math.rad(-10)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(90),math.rad(-20)),.3)
+end
+for x = 0, 2 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 1.5, 1.025)
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*4
+MagniDamage(hitb, 4, 12,15, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(40),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.2,-0.25,0)*angles(math.rad(-2),math.rad(0),math.rad(80)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-20)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(0),math.rad(30),math.rad(90)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(40),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.2,-0.25,0)*angles(math.rad(-2),math.rad(0),math.rad(80)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-20)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(0),math.rad(0),math.rad(180)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(40),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.2,-0.25,0)*angles(math.rad(-2),math.rad(0),math.rad(80)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-20)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(0),math.rad(-30),math.rad(270)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(40),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.2,-0.25,0)*angles(math.rad(-2),math.rad(0),math.rad(80)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-20)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+end
+attack = false
+hum.WalkSpeed = Speed
+end
+------------------
+function spinnyblade()
+attack = true
+hum.WalkSpeed = 16
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368583274", root, 4.5, 1)
+local bgui = Instance.new("BillboardGui",root)
+bgui.Size = UDim2.new(25, 0, 25, 0)
+local imgc = Instance.new("ImageLabel",bgui)
+imgc.BackgroundTransparency = 1
+imgc.ImageTransparency = 1
+imgc.Size = UDim2.new(1,0,1,0)
+imgc.Image = "rbxassetid://997291547"
+imgc.ImageColor3 = Color3.new(0,0.5,1)
+local imgc2 = imgc:Clone()
+imgc2.Parent = bgui
+imgc2.Position = UDim2.new(-0.5,0,-0.5,0)
+imgc2.Size = UDim2.new(2,0,2,0)
+imgc2.ImageColor3 = Color3.new(0.5,0,1)
+for i = 0, 1, 0.1 do
+		swait()
+bgui.Size = bgui.Size - UDim2.new(0.25, 0, 0.25, 0)
+hum.CameraOffset = vt(math.random(-10,10)/50,math.random(-10,10)/50,math.random(-10,10)/50)
+	RH.C0=clerp(RH.C0,cf(1,-0.5,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-40),math.rad(10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(1),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.2,-0.3)*angles(math.rad(10),math.rad(0),math.rad(50)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(-50)),.3)
+RW.C0=clerp(RW.C0,cf(1.25,0.5,-0.65)*angles(math.rad(100),math.rad(0),math.rad(-23)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(110),math.rad(0),math.rad(-85)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+imgc.ImageTransparency = 1
+hum.CameraOffset = vt(0,0,0)
+for i = 0, 9 do
+end
+CFuncs["Sound"].Create("rbxassetid://430315987", root, 1.5, 1)
+CFuncs["Sound"].Create("rbxassetid://1295446488", root, 3, 1)
+for x = 0, 20 do
+CFuncs["Sound"].Create("rbxassetid://200633281", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://161006195", rarmor, 1.5, 1.025)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*2
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(0),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*3
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*3
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(180),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*3
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(270),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+end
+hum.WalkSpeed = 0
+for i = 0, 5, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-20)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-0.6,-0.5)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(20),math.rad(-12)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.2,-0.35)*angles(math.rad(10),math.rad(0),math.rad(-40)),.2)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(40)),.2)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0)*angles(math.rad(90),math.rad(0),math.rad(110)),.2)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0)*angles(math.rad(45),math.rad(0),math.rad(-20)),.2)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.2)
+end
+bgui:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function darkspin()
+attack = true
+hum.WalkSpeed = 16
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368583274", root, 4.5, 1)
+local bgui = Instance.new("BillboardGui",root)
+bgui.Size = UDim2.new(25, 0, 25, 0)
+local imgc = Instance.new("ImageLabel",bgui)
+imgc.BackgroundTransparency = 1
+imgc.ImageTransparency = 1
+imgc.Size = UDim2.new(1,0,1,0)
+imgc.Image = "rbxassetid://997291547"
+imgc.ImageColor3 = Color3.new(0,0.5,1)
+local imgc2 = imgc:Clone()
+imgc2.Parent = bgui
+imgc2.Position = UDim2.new(-0.5,0,-0.5,0)
+imgc2.Size = UDim2.new(2,0,2,0)
+imgc2.ImageColor3 = Color3.new(0.5,0,1)
+for i = 0, 1, 0.1 do
+		swait()
+bgui.Size = bgui.Size - UDim2.new(0.25, 0, 0.25, 0)
+hum.CameraOffset = vt(math.random(-10,10)/50,math.random(-10,10)/50,math.random(-10,10)/50)
+	RH.C0=clerp(RH.C0,cf(1,-0.5,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-40),math.rad(10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(1),math.rad(20)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.2,-0.3)*angles(math.rad(10),math.rad(0),math.rad(50)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(-50)),.3)
+RW.C0=clerp(RW.C0,cf(1.25,0.5,-0.65)*angles(math.rad(100),math.rad(0),math.rad(-23)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(110),math.rad(0),math.rad(-85)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+imgc.ImageTransparency = 1
+hum.CameraOffset = vt(0,0,0)
+for i = 0, 9 do
+end
+CFuncs["Sound"].Create("rbxassetid://430315987", root, 1.5, 1)
+CFuncs["Sound"].Create("rbxassetid://1295446488", root, 3, 1)
+for x = 0, 20 do
+CFuncs["Sound"].Create("rbxassetid://200633281", rarmor, 1, 1.05)
+CFuncs["Sound"].Create("rbxassetid://161006195", rarmor, 1.5, 1.025)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*6
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(0),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*4
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*5
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(180),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+CFuncs["Sound"].Create("rbxassetid://200632992", rarmor, 1.25, 1)
+MagniDamage(tors, 10, 60,85, 0, "Normal",153092213)
+for i = 0, 1, 0.6 do
+		swait()
+root.CFrame = root.CFrame + root.CFrame.lookVector*4
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0.5)*angles(math.rad(270),math.rad(0),math.rad(90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(90)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.3)
+end
+end
+hum.WalkSpeed = 0
+for i = 0, 5, 0.1 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-20)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-0.6,-0.5)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(20),math.rad(-12)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0.1,0.2,-0.35)*angles(math.rad(10),math.rad(0),math.rad(-40)),.2)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(40)),.2)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0)*angles(math.rad(90),math.rad(0),math.rad(110)),.2)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0)*angles(math.rad(45),math.rad(0),math.rad(-20)),.2)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.2)
+end
+bgui:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function eightbitmegablade()
+attack = true
+hum.WalkSpeed = 0
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368583274", larm, 4.5, 1.2)
+local OverCut = false
+cam.CameraSubject = Humanoid
+cam.CameraType = "Scriptable"
+coroutine.resume(coroutine.create(function()
+while true do
+swait()
+if OverCut == false then
+cam.CFrame = lerp(cam.CFrame, root.CFrame * cf(1, 1.5, -6) * ceuler(math.rad(10), math.rad(170), math.rad(-20)), 0.1)
+else
+break
+end
+end
+end))
+for i = 0, 4, 0.1 do
+swait()
+sphere2(5,"Add",larm.CFrame*CFrame.new(0,-1.5,0)*CFrame.Angles(math.rad(math.random(-360,360)),math.rad(math.random(-360,360)),math.rad(math.random(-360,360))),vt(1,1,1),-0.01,0.1,-0.01,BrickColor.new("Toothpaste"),BrickColor.new("Toothpaste").Color)
+slash(math.random(20,40)/10,5,true,"Round","Add","Out",larm.CFrame*CFrame.new(0,-1.5,0)*CFrame.Angles(math.rad(math.random(-360,360)),math.rad(math.random(-360,360)),math.rad(math.random(-360,360))),vt(0.025,0.001,0.025),-0.025,BrickColor.new("White"))
+RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6),math.rad(0),math.rad(-6)),.3)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(3)),.3)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0)*angles(math.rad(0),math.rad(0),math.rad(-50)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-15),math.rad(5),math.rad(50)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(-13),math.rad(-40),math.rad(20)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(170),math.rad(10),math.rad(0)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(130),math.rad(0)),.3)
+end
+OverCut = true
+local orb = Instance.new("Part", char)
+orb.Anchored = true
+orb.BrickColor = BrickColor.new("Toothpaste")
+orb.CanCollide = false
+orb.FormFactor = 3
+orb.Name = "Ring"
+orb.Material = "Neon"
+orb.Size = Vector3.new(1, 1, 1)
+orb.Transparency = 0.5
+orb.TopSurface = 0
+orb.BottomSurface = 0
+local orbm = Instance.new("SpecialMesh", orb)
+orbm.MeshType = "FileMesh"
+orbm.MeshId = "rbxassetid://361629844"
+orbm.Scale = vt(30,60,60)
+orb.CFrame = root.CFrame*CFrame.new(0,50,0)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://1368637781", orb, 7.5, 1)
+local a = Instance.new("Part",workspace)
+a.Name = "Direction"	
+a.Anchored = true
+a.Transparency = 1
+a.CanCollide = false
+local ray = Ray.new(
+orb.CFrame.p,                           -- origin
+(mouse.Hit.p - orb.CFrame.p).unit * 500 -- direction
+) 
+local ignore = orb
+local hit, position, normal = workspace:FindPartOnRay(ray, ignore)
+a.BottomSurface = 10
+a.TopSurface = 10
+local distance = (orb.CFrame.p - position).magnitude
+a.Size = Vector3.new(0.1, 0.1, 0.1)
+a.CFrame = CFrame.new(orb.CFrame.p, position) * CFrame.new(0, 0, 0)
+orb.CFrame = a.CFrame
+for i = 0, 7, 0.1 do
+swait()
+ray = Ray.new(
+orb.CFrame.p,                           -- origin
+(mouse.Hit.p - orb.CFrame.p).unit * 500 -- direction
+) 
+hit, position, normal = workspace:FindPartOnRay(ray, ignore)
+distance = (orb.CFrame.p - position).magnitude
+a.CFrame = CFrame.new(orb.CFrame.p, position) * CFrame.new(0, 0, 0)
+orb.CFrame = a.CFrame
+cam.CFrame = lerp(cam.CFrame, root.CFrame * cf(20, 65, 55) * ceuler(math.rad(-20), math.rad(0), math.rad(10)), 0.2)
+RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6),math.rad(0),math.rad(-6)),.3)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(40),math.rad(3)),.3)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0)*angles(math.rad(0),math.rad(0),math.rad(-90)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(90)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(-13),math.rad(-20),math.rad(20)),.3)
+LW.C0=clerp(LW.C0,cf(-1.25,0.5,-0.5)*angles(math.rad(100),math.rad(0),math.rad(60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(130),math.rad(0)),.3)
+end
+cam.CameraType = "Custom"
+orb.Anchored = false
+a:Destroy()
+local bv = Instance.new("BodyVelocity")
+bv.maxForce = Vector3.new(1e9, 1e9, 1e9)
+bv.velocity = orb.CFrame.lookVector*250
+bv.Parent = orb
+local hitted = false
+CFuncs["Sound"].Create("rbxassetid://466493476", orb, 7.5, 0.7)
+waveEff(2,"Add","Out",orb.CFrame*CFrame.Angles(math.rad(90),math.rad(math.random(-360,360)),0),vt(5,1,5),0.5,0.1,BrickColor.new("Cyan"))
+coroutine.resume(coroutine.create(function()
+while true do
+swait(2)
+if hitted == false and orb.Parent ~= nil then
+elseif hitted == true and orb.Parent == nil then
+break
+end
+end
+end))
+orb.Touched:connect(function(hit) 
+if hitted == false and hit.Parent ~= char then
+hitted = true
+MagniDamage(orb, 30, 72,95, 0, "Normal",153092213)
+CFuncs["Sound"].Create("rbxassetid://763717897", orb, 10, 1)
+CFuncs["Sound"].Create("rbxassetid://1295446488", orb, 9, 0.75)
+for i = 0, 24 do
+end
+orb.Anchored = true
+orb.Transparency = 1
+coroutine.resume(coroutine.create(function()
+for i = 0, 4, 0.1 do
+swait()
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+end
+hum.CameraOffset = vt(0,0,0)
+end))
+wait(10)
+orb:Destroy()
+end
+end)
+game:GetService("Debris"):AddItem(orb, 10)
+for i = 0, 2, 0.1 do
+swait()
+RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6),math.rad(0),math.rad(-6)),.3)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(3)),.3)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.4,0)*angles(math.rad(0),math.rad(0),math.rad(-70)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(5),math.rad(0),math.rad(70)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(-13),math.rad(-40),math.rad(20)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-80)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(130),math.rad(0)),.3)
+end
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function bladespinagain()
+attack = true
+hum.WalkSpeed = 40
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(90),math.rad(0)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(180),math.rad(0)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(270),math.rad(0)),.3)
+end
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*8
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(0),math.rad(0),math.rad(80)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.9)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function darkbruh()
+attack = true
+hum.WalkSpeed = hum.WalkSpeed
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.5,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(0),math.rad(0)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(90),math.rad(0)),.3)
+end
+for i = 0, 1, 0.6 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(180),math.rad(0)),.3)
+end
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*16
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(0),math.rad(0),math.rad(80)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.9)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function SCYTHEslash2()
+attack = true
+hum.WalkSpeed = 90
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(65),math.rad(0)),.3)
+end
+end
+wait(0.05)
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*8
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(0),math.rad(0),math.rad(80)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.9)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function axeslash()
+attack = true
+hum.WalkSpeed = 100
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(65),math.rad(0)),.3)
+end
+end
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*8
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(0),math.rad(0),math.rad(80)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(90),math.rad(0),math.rad(-90)),.9)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function darkslash()
+attack = true
+hum.WalkSpeed = 80
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(0),math.rad(0),math.rad(-60)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(60)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(-15),math.rad(180),math.rad(90)),.3)
+end
+end
+wait(0.06)
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*8
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(0),math.rad(0),math.rad(80)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(-80)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(2,0,0)*angles(math.rad(0),math.rad(180),math.rad(90)),.9)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function smack()
+attack = true
+hum.WalkSpeed = 3
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368598393", rarmor, 2, 1)
+CFuncs["Sound"].Create("rbxassetid://1368583274", rarmor, 2.5, 1)
+for x = 0, 1 do
+CFuncs["Sound"].Create("rbxassetid://200633108", rarmor, 2, 1.05)
+CFuncs["Sound"].Create("rbxassetid://234365573", rarmor, 2.5, 1.025)
+for i = 0, 1, 0.6 do
+		swait()
+	RH.C0=clerp(RH.C0,cf(1,-0.5,-0.5)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-10)),.2)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(-55),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(30),math.rad(0)),.2)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0.25,0)*angles(math.rad(-60),math.rad(0),math.rad(-0)),.3)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(64),math.rad(0),math.rad(0)),.3)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(80)),.3)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(-60)),.3)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0 + -0 * math.sin(sine / 0.5)),math.rad(-90 + -5 * math.sin(sine / 40)),math.rad(0 + -0.1 * math.sin(sine / 0.5))),.3)
+end
+end
+wait(0.08)
+local hitb = CreateParta(m,1,1,"SmoothPlastic",BrickColor.Random())
+hitb.Anchored = true
+hitb.CFrame = root.CFrame + root.CFrame.lookVector*8
+hitb.CFrame = hitb.CFrame*CFrame.new(0,1,0)
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+for i = 0, 24 do
+end
+CFuncs["Sound"].Create("rbxassetid://313205954", root, 4,1)
+CFuncs["Sound"].Create("rbxassetid://1368637781", rarmor, 4,1)
+CFuncs["Sound"].Create("rbxassetid://763718160", rarmor, 5, 1.1)
+CFuncs["Sound"].Create("rbxassetid://782353443", rarmor, 6, 1)
+--CFuncs["Sound"].Create("rbxassetid://1548538202", rarmor, 4,1)
+for i = 0, 2, 0.1 do
+		swait()
+MagniDamage(hitb, 8, 92,158, 0, "Normal",153092213)
+hum.CameraOffset = vt(math.random(-10,10)/25,math.random(-10,10)/25,math.random(-10,10)/25)
+	RH.C0=clerp(RH.C0,cf(1,-1,-0.5)*angles(math.rad(20),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(-20),math.rad(-10)),.9)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(15),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(0)),.9)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,0)*angles(math.rad(30),math.rad(0),math.rad(0)),.9)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(10),math.rad(0),math.rad(0)),.9)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(90),math.rad(0),math.rad(70)),.9)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-60)),.9)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0 + -0 * math.sin(sine / 0.5)),math.rad(-90 + -5 * math.sin(sine / 40)),math.rad(0 + -0.1 * math.sin(sine / 0.5))),.3)
+end
+hum.CameraOffset = vt(0,0,0)
+hitb:Destroy()
+attack = false
+hum.WalkSpeed = Speed
+hum.JumpPower = 50
+end
+
+function superjump()
+attack = true
+hum.WalkSpeed = 0
+hum.JumpPower = 0
+CFuncs["Sound"].Create("rbxassetid://1368637781", root, 7.5, 1)
+for i = 0, 2, 0.1 do
+		swait()
+hum.CameraOffset = vt(math.random(-10,10)/100,math.random(-10,10)/100,math.random(-10,10)/100)
+root.Velocity = vt(0,0,0)
+	RH.C0=clerp(RH.C0,cf(1,-0.45,-0.45)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(20)),.4)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(40)),.4)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.5,-1)*angles(math.rad(20),math.rad(0),math.rad(0)),.4)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(4),math.rad(0),math.rad(0)),.4)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(40)),.4)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(10),math.rad(0),math.rad(-40)),.4)
+end
+CFuncs["Sound"].Create("rbxassetid://477843807", root, 7, 1.05)
+local lat1 = Instance.new("Attachment",larm)
+lat1.Position = Vector3.new(1,-1,0.5)
+local lat2 = Instance.new("Attachment",larm)
+lat2.Position = Vector3.new(-1,-1,-0.5)
+local rat1 = Instance.new("Attachment",rarm)
+rat1.Position = Vector3.new(1,-1,-0.5)
+local rat2 = Instance.new("Attachment",rarm)
+rat2.Position = Vector3.new(-1,-1,0.5)
+local tl1 = Instance.new('Trail',larm)
+tl1.Attachment0 = lat1
+tl1.Attachment1 = lat2
+tl1.Texture = "http://www.roblox.com/asset/?id=1049219073"
+tl1.LightEmission = 1
+tl1.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0, 1),NumberSequenceKeypoint.new(0.05, 0),NumberSequenceKeypoint.new(1, 1)})
+tl1.Color = ColorSequence.new(BrickColor.new('Royal purple').Color,BrickColor.new('Royal purple').Color)
+tl1.Lifetime = 5
+local tl2 = tl1:Clone()
+tl2.Attachment0 = rat1
+tl2.Attachment1 = rat2
+tl2.Parent = rarm
+hum.JumpPower = 20
+hum.Jump = true
+swait()
+hum.JumpPower = 0
+root.Velocity = vt(0,250,0) + root.CFrame.lookVector*250
+for i = 0, 49 do
+end
+coroutine.resume(coroutine.create(function()
+for i = 0, 2, 0.1 do
+swait()
+hum.CameraOffset = vt(math.random(-10,10)/50,math.random(-10,10)/50,math.random(-10,10)/50)
+end
+hum.CameraOffset = vt(0,0,0)
+wait(3)
+tl1.Enabled = false
+tl2.Enabled = false
+game:GetService("Debris"):AddItem(tl1, 5)
+game:GetService("Debris"):AddItem(tl2, 5)
+game:GetService("Debris"):AddItem(rat1, 5)
+game:GetService("Debris"):AddItem(rat2, 5)
+game:GetService("Debris"):AddItem(lat1, 5)
+game:GetService("Debris"):AddItem(lat2, 5)
+end))
+CFuncs["Sound"].Create("rbxassetid://1295446488", root, 10, 1)
+for i = 0, 3, 0.1 do
+		swait()
+RH.C0=clerp(RH.C0,cf(1,-0.45,-0.45)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(-20)),.4)
+LH.C0=clerp(LH.C0,cf(-1,-1,0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3),math.rad(0),math.rad(30)),.4)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.75,0)*angles(math.rad(40),math.rad(0),math.rad(0)),.4)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-20),math.rad(0),math.rad(0)),.4)
+RW.C0=clerp(RW.C0,cf(1.45,0.5,0.1)*angles(math.rad(-30),math.rad(0),math.rad(20)),.4)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5,0.1)*angles(math.rad(-30),math.rad(0),math.rad(-20)),.4)
+end
+coroutine.resume(coroutine.create(function()
+for i = 0, 54 do
+swait()
+end
+end))
+attack = false
+if equipped == false then
+hum.WalkSpeed = 16
+else
+hum.WalkSpeed = Speed
+end
+hum.JumpPower = 50
+end
+------------------
+
+
+local attacktype = 1
+mouse.Button1Down:connect(function()
+if equipped == true then
+  if attack == false and attacktype == 1 then
+    attacktype = 2
+    attackone()
+  elseif attack == false and attacktype == 2 then
+    attacktype = 3
+    attacktwo()
+  elseif attack == false and attacktype == 3 then
+    attacktype = 1
+    attackthree()
+  --[[elseif attack == false and attacktype == 4 then
+    attacktype = 1
+    --attackfour()]]--
+  end
+end
+end)
+mouse.KeyDown:connect(function(k)
+if k == "f" and attack == false and equipped == false then
+	maybe:FindFirstChildOfClass("AlignOrientation").Attachment1 = rarmor.Attachment
+    maybe:FindFirstChildOfClass("AlignPosition").Attachment1 = rarmor.Attachment2
+
+    rarmor.Attachment2.Position = Vector3.new(-1.5, -0.100, 0)
+    rarmor.Attachment.Rotation = Vector3.new(-1.1, 2, 5000)
+	equip()
+elseif k == "f" and attack == false and equipped == true then
+	maybe:FindFirstChildOfClass("AlignOrientation").Attachment1 = playerss.Torso.WaistBackAttachment
+    maybe:FindFirstChildOfClass("AlignPosition").Attachment1 = playerss.Torso.WaistBackAttachment
+
+    playerss.Torso.WaistBackAttachment.Position = Vector3.new(-0, 0.26, 0.6)
+    playerss.Torso.WaistBackAttachment.Orientation = Vector3.new(-4.16, -179.28, 160.7)
+   unequip()
+end
+if k == "y" and attack == false and equipped == false then
+	maybe:FindFirstChildOfClass("AlignOrientation").Attachment1 = rarmor.Attachment
+    maybe:FindFirstChildOfClass("AlignPosition").Attachment1 = rarmor.Attachment2
+
+    rarmor.Attachment2.Position = Vector3.new(-1.25, 0.28, -0)
+    rarmor.Attachment.Rotation = Vector3.new(-0, -0, -290)
+elseif k == "y" and attack == false and equipped == true then
+	maybe:FindFirstChildOfClass("AlignOrientation").Attachment1 = playerss.Torso.WaistBackAttachment
+    maybe:FindFirstChildOfClass("AlignPosition").Attachment1 = playerss.Torso.WaistBackAttachment
+
+    playerss.Torso.WaistBackAttachment.Position = Vector3.new(-0, 0.26, 0.6)
+    playerss.Torso.WaistBackAttachment.Orientation = Vector3.new(-4.16, -179.28, 125.7)
+end
+if k == "2" and attack == false then
+       hum.WalkSpeed = 40
+       Speed = 40
+       kan.Pitch = 0.92
+       kan.SoundId = "rbxassetid://183142252"
+		BanishMode = 2
+	end
+
+if k == "1" and attack == false then
+      hum.WalkSpeed = 24
+      Speed = 24
+      kan.Pitch = 0.91
+      kan.SoundId = "rbxassetid://5801326053"
+		BanishMode = 1
+	end
+
+if k == "3" and attack == false then
+      hum.WalkSpeed = 13.8
+      Speed = 13.8
+      kan.Pitch = 0.8
+      kan.SoundId = "rbxassetid://4565857495"
+		BanishMode = 4
+	end
+
+if k == "4" and attack == false then
+      hum.WalkSpeed = 8
+      Speed = 8
+      kan.Pitch = 0.9
+      kan.SoundId = "rbxassetid://4466439348"
+		BanishMode = 5
+	end
+
+if k == "5" and attack == false then
+      hum.WalkSpeed = 35
+      Speed = 35
+      kan.Pitch = 1
+      kan.SoundId = "rbxassetid://264721135"
+		BanishMode = 7
+	end
+
+if k == "r" and attack == false then
+superjump()
+end
+if k == "v" and attack == false then
+g1 = Instance.new("BodyGyro", Root)
+g1.D = 175
+g1.P = 20000
+g1.MaxTorque = Vector3.new(0,9000,0)
+g1.CFrame = CFrame.new(playerss:FindFirstChild("HumanoidRootPart").Position,mouse.Hit.p)
+game:GetService("Debris"):AddItem(g1,.05)
+playerss:FindFirstChild("HumanoidRootPart").CFrame = CFrame.new(mouse.Hit.p) * CFrame.new(0,3.3,0)
+end
+plr.Chatted:connect(function(message)
+if message == "/sit" and attack == false then
+Speed = 0
+hum.WalkSpeed = 0
+      BanishMode = 2000
+    end
+
+if message == "/glitch" and attack == false and BanishMode == 5 then
+Speed = 8
+hum.WalkSpeed = 8
+kan.Pitch = 0.6
+      BanishMode = 1000
+      kan.Pitch = 0.6
+wait(0.02)
+      kan.Pitch = 0.5
+wait(0.02)
+kan.Pitch = 0.467
+    end
+
+if message:sub(1,3) == "id/" then
+ORGID = message:sub(4)
+kan.TimePosition = 0
+kan:Play()
+elseif message:sub(1,6) == "pitch/" then
+ORPIT = message:sub(7)
+elseif message:sub(1,4) == "vol/" then
+ORVOL = message:sub(5)
+elseif message:sub(1,5) == "skip/" then
+kan.TimePositcion = message:sub(6)
+end
+end)
+if equipped == true then
+
+if k == "z" and attack == false then
+spinnyblade()
+end
+
+
+if k == "x" and attack == false then
+eightbitmegablade()
+end
+if k == "q" and attack == false and BanishMode == 2 then
+axeslash()
+end
+if k == "q" and attack == false and BanishMode == 4 then
+darkslash()
+end
+if k == "q" and attack == false and BanishMode == 5 then
+smack()
+end
+if k == "e" and attack == false and BanishMode == 4 then
+darkspin()
+end
+if k == "c" and attack == false then
+bladespinagain()
+end
+end
+if k == "l" and muter == false then
+muter = true
+kan.Volume = 0
+elseif k == "l" and muter == true then
+muter = false
+if not NoSound then
+	kan.Volume = 1.25
+end
+end
 end)
 
-local cf, v3, euler, sin, sine = CFrame.new, Vector3.new, CFrame.fromEulerAnglesXYZ, math.sin, 0
-while event:Wait() do
-    sine += sinechange
-    local vel = humanoidRootPart.Velocity
-    if (vel*v3(1, 0, 1)).Magnitude > 2 then -- walk
-        neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.6580627893946132 + -0.17453292519943295 * sin(sine * 0.4), -0.04363323129985824 * sin(sine * 0.2), -3.1590459461097367 + -0.08726646259971647 * sin((sine + -2.5) * 0.2)), 0.2) 
-        rootJoint.C0 = rootJoint.C0:Lerp(cf(0, 0.2 + 0.2 * sin(sine * 0.4), 0) * euler(-1.6580627893946132 + 0.08726646259971647 * sin((sine + -1) * 0.4), 0.08726646259971647 * sin(sine * 0.2), -3.1590459461097367 + 0.17453292519943295 * sin((sine + -2.5) * 0.2)), 0.2) 
-        leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.5, 0) * euler(1.5707963267948966, -1.3962634015954636, 1.2217304763960306 + -0.6981317007977318 * sin((sine + -2.5) * 0.2)), 0.2) 
-        rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.5, 0) * euler(1.5707963267948966, 1.3962634015954636, -1.2217304763960306 + -0.6981317007977318 * sin((sine + -2.5) * 0.2)), 0.2) 
-        leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1 + -0.3 * sin((sine + 5) * 0.2), 0) * euler(1.5707963267948966 + -0.8726646259971648 * sin(sine * 0.2), -1.5707963267948966 + 0.08726646259971647 * sin(sine * 0.2), 1.5707963267948966), 0.2) 
-        rightHip.C0 = rightHip.C0:Lerp(cf(1, -1 + 0.3 * sin((sine + 5) * 0.2), 0) * euler(1.5707963267948966 + 0.8726646259971648 * sin(sine * 0.2), 1.5707963267948966 + 0.08726646259971647 * sin(sine * 0.2), -1.5707963267948966), 0.2) 
-    elseif vel.Y > 2 then -- jump
-        neck.C0 = neck.C0:Lerp(cf(0 + 0 * sin((sine + 0) * 0.1), 1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-1.3962634015954636 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), -3.1590459461097367 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rootJoint.C0 = rootJoint.C0:Lerp(cf(0 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-1.3962634015954636 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), -3.141592653589793 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1 + 0 * sin((sine + 0) * 0.1), 0.5 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-0 + 0 * sin((sine + 0) * 0.1), -0.7853981633974483 + 0 * sin((sine + 0) * 0.1), -2.443460952792061 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1 + 0 * sin((sine + 0) * 0.1), 0.5 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(0 + 0 * sin((sine + 0) * 0.1), 0.7853981633974483 + 0 * sin((sine + 0) * 0.1), 2.443460952792061 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        leftHip.C0 = leftHip.C0:Lerp(cf(-1 + 0 * sin((sine + 0) * 0.1), -1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-0.6981317007977318 + 0 * sin((sine + 0) * 0.1), -1.5882496193148399 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rightHip.C0 = rightHip.C0:Lerp(cf(1 + 0 * sin((sine + 0) * 0.1), -1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(0 + 0 * sin((sine + 0) * 0.1), 1.5707963267948966 + 0 * sin((sine + 0) * 0.1), -0.6981317007977318 + 0 * sin((sine + 0) * 0.1)), 0.2)
-    elseif vel.Y < -2 then -- fall
-        neck.C0 = neck.C0:Lerp(cf(0 + 0 * sin((sine + 0) * 0.1), 1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-1.7453292519943295 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), -3.141592653589793 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rootJoint.C0 = rootJoint.C0:Lerp(cf(0 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-1.7453292519943295 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1), -3.141592653589793 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1 + 0 * sin((sine + 0) * 0.1), 0.5 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(-0 + 0 * sin((sine + 0) * 0.1), -1.2217304763960306 + 0 * sin((sine + 0) * 0.1), -0.8726646259971648 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1 + 0 * sin((sine + 0) * 0.1), 0.5 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(0 + 0 * sin((sine + 0) * 0.1), 1.2217304763960306 + 0 * sin((sine + 0) * 0.1), 0.8726646259971648 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        leftHip.C0 = leftHip.C0:Lerp(cf(-1 + 0 * sin((sine + 0) * 0.1), -1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(0.5235987755982988 + 0 * sin((sine + 0) * 0.1), -1.5707963267948966 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)), 0.2) 
-        rightHip.C0 = rightHip.C0:Lerp(cf(1 + 0 * sin((sine + 0) * 0.1), -1 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)) * euler(0.5235987755982988 + 0 * sin((sine + 0) * 0.1), 1.5707963267948966 + 0 * sin((sine + 0) * 0.1), 0 + 0 * sin((sine + 0) * 0.1)), 0.2)
-    else -- idle
-		if not mode then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.5882496193148399 + 0.08726646259971647 * sin((sine + -30) * 0.05), 0, -3.1590459461097367), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, 0.1 * sin(sine * 0.05), 0) * euler(-1.5882496193148399 + 0.05235987755982989 * sin(sine * 0.05), 0, -3.1590459461097367), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-0.85, 0.65 + 0.1 * sin((sine + -15) * 0.05), 0.2 + 0.1 * sin(sine * 0.05)) * euler(1.5707963267948966 + 0.08726646259971647 * sin(sine * 0.05), -0.7853981633974483, 1.7453292519943295), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(0.85, 0.65 + 0.1 * sin((sine + -15) * 0.05), 0.2 + 0.1 * sin(sine * 0.05)) * euler(1.5707963267948966 + 0.08726646259971647 * sin(sine * 0.05), 0.7853981633974483, -1.7453292519943295), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1 + -0.1 * sin(sine * 0.05), 0.05 * sin(sine * 0.05)) * euler(1.5707963267948966, -1.6580627893946132, 1.5707963267948966 + 0.05235987755982989 * sin(sine * 0.05)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -1 + -0.1 * sin(sine * 0.05), 0.05 * sin(sine * 0.05)) * euler(1.5707963267948966, 1.6580627893946132, -1.5707963267948966 + -0.05235987755982989 * sin(sine * 0.05)), 0.2) 
-		elseif mode == "russia" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.6580627893946132 + 0.17453292519943295 * sin((sine + -7.5) * 0.4), 0.08726646259971647 * sin((sine + 7.5) * 0.2), -3.1590459461097367 + 0.17453292519943295 * sin((sine + -2.5) * 0.2)), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, 0.1 + 0.2 * sin((sine + -2.5) * 0.4), 0) * euler(-1.4835298641951802 + 0.08726646259971647 * sin(sine * 0.4), -0.08726646259971647 * sin((sine + -5) * 0.2), -3.1590459461097367 + -0.17453292519943295 * sin((sine + -3.5) * 0.2)), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-0.5, 0.2 + 0.05 * sin((sine + 5) * 0.4), 0) * euler(3.141592653589793 + 0.08726646259971647 * sin(sine * 0.4), -0.17453292519943295 + 0.17453292519943295 * sin((sine + -5) * 0.2), 1.5707963267948966 + -0.03490658503988659 * sin((sine + -5) * 0.4)), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(0.5, 0.2 + 0.05 * sin((sine + 5) * 0.4), 0) * euler(3.141592653589793 + 0.08726646259971647 * sin(sine * 0.4), 0.17453292519943295 + 0.17453292519943295 * sin((sine + -5) * 0.2), -1.5707963267948966 + 0.03490658503988659 * sin((sine + -5) * 0.4)), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1, 0) * euler(0, -1.5882496193148399, -0.3490658503988659 + 1.0471975511965976 * sin((sine + -5) * 0.2)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -1, 0) * euler(0, 1.5707963267948966, 0.3490658503988659 + 1.0471975511965976 * sin((sine + -5) * 0.2)), 0.2) 
-		elseif mode == "sit" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1.1, -0.1) * euler(-2.007128639793479 + -0.12217304763960307 * sin((sine + -25) * 0.05), 0, -3.1590459461097367), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, -1.6 + 0.05 * sin(sine * 0.05), 1 + 0.01 * sin((sine + 15) * 0.05)) * euler(-1.1344640137963142 + 0.08726646259971647 * sin((sine + 15) * 0.05), 0, -3.141592653589793), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.2 + -0.05 * sin(sine * 0.05), 0.05 * sin(sine * 0.05)) * euler(-0.6981317007977318 + -0.05235987755982989 * sin((sine + 15) * 0.05), -1.2217304763960306, 0), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.2 + -0.05 * sin(sine * 0.05), 0.05 * sin(sine * 0.05)) * euler(-0.6981317007977318 + -0.05235987755982989 * sin((sine + 15) * 0.05), 1.2217304763960306, 0), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-0.9, -1 + -0.06 * sin((sine + 5) * 0.05), 0.1 * sin(sine * 0.05)) * euler(2.705260340591211 + -0.08726646259971647 * sin((sine + 15) * 0.05), -1.7453292519943295, 1.5707963267948966), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(0.9, -1 + -0.06 * sin((sine + 5) * 0.05), 0.1 * sin(sine * 0.05)) * euler(2.705260340591211 + -0.08726646259971647 * sin((sine + 15) * 0.05), 1.7453292519943295, -1.5707963267948966), 0.2) 
-		elseif mode == "wave" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.5882496193148399, -0.2617993877991494 * sin((sine + 5) * 0.1), -3.1590459461097367), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0.2 * sin(sine * 0.1), -0.1, 0) * euler(-1.5882496193148399, 0.17453292519943295 * sin(sine * 0.1), -3.1590459461097367), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.5, 0) * euler(1.5707963267948966, -1.7453292519943295 + 0.17453292519943295 * sin((sine + 10) * 0.1), 1.5707963267948966), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 1.5, 0) * euler(1.5707963267948966, 1.2217304763960306 + -0.3490658503988659 * sin((sine + -10) * 0.1), 1.5707963267948966), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1 + -0.1 * sin(sine * 0.1), -0.9 + -0.15 * sin(sine * 0.1), 0) * euler(1.5707963267948966, -1.7453292519943295 + 0.20943951023931956 * sin(sine * 0.1), 1.5707963267948966), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1 + -0.1 * sin(sine * 0.1), -0.9 + 0.15 * sin(sine * 0.1), 0) * euler(1.5707963267948966, 1.7453292519943295 + 0.20943951023931956 * sin(sine * 0.1), -1.5707963267948966), 0.2) 		
-        elseif mode == "lay" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1.2, -0.2) * euler(-2.2689280275926285 + 0.08726646259971647 * sin(sine * 0.05), 0, -3.1590459461097367), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, -2.4 + 0.1 * sin(sine * 0.05), 0) * euler(0, 0, -3.1590459461097367), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-0.6, 1, 0.1 + 0.1 * sin(sine * 0.05)) * euler(1.5707963267948966, -2.356194490192345 + 0.08726646259971647 * sin(sine * 0.05), -1.5707963267948966), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(0.6, 1, 0.1 + 0.1 * sin(sine * 0.05)) * euler(1.5707963267948966, 2.356194490192345 + -0.08726646259971647 * sin(sine * 0.05), 1.5707963267948966), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1, 0) * euler(1.5707963267948966, -1.3089969389957472, 1.6580627893946132 + 0.08726646259971647 * sin(sine * 0.05)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -1, 0) * euler(1.5707963267948966, 1.3089969389957472, -1.1344640137963142 + -0.08726646259971647 * sin(sine * 0.05)), 0.2) 
-		elseif mode == "dab" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1 + -0.1 * sin((sine + 10) * 0.05), 0) * euler(-2.2689280275926285, -0.17453292519943295, 2.356194490192345), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, 0.1 * sin(sine * 0.05), 0) * euler(-1.6580627893946132, 0.08726646259971647, -3.2288591161895095), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1.6, 0.5 + -0.1 * sin((sine + 20) * 0.05), 0) * euler(1.5707963267948966, 2.8797932657906435, 1.5707963267948966), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.25 + -0.1 * sin((sine + 20) * 0.05), -0.5) * euler(4.1887902047863905, 0.3490658503988659, -1.7453292519943295), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1 + -0.1 * sin((sine + 10) * 0.05), 0) * euler(1.7453292519943295, -1.7453292519943295, 1.5707963267948966), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -0.85 + -0.1 * sin((sine + 10) * 0.05), 0) * euler(1.5707963267948966, 1.7453292519943295, -1.5707963267948966), 0.2) 
-		elseif mode == "dance" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.5882496193148399 + 0.3490658503988659 * sin((sine + 27.5) * 0.2), -0.17453292519943295 * sin((sine + 10) * 0.1), -3.1590459461097367 + 0.3490658503988659 * sin(sine * 0.1)), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0, 0, 0) * euler(-1.5882496193148399, 0, -3.1590459461097367 + 0.5235987755982988 * sin(sine * 0.1)), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.5, 0) * euler(0, -1.5882496193148399 + 0.5235987755982988 * sin((sine + 5) * 0.1), -1.7453292519943295 + -0.5235987755982988 * sin((sine + 5) * 0.1)), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.5, 0) * euler(0, 1.5707963267948966 + 0.5235987755982988 * sin((sine + 5) * 0.1), 1.7453292519943295 + -0.5235987755982988 * sin((sine + 5) * 0.1)), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1.05 + 0.05 * sin((sine + 7.5) * 0.2), -1, 0.05 * sin(sine * 0.1)) * euler(0, -1.5882496193148399 + -0.2617993877991494 * sin(sine * 0.1), -0.3490658503988659 * sin(sine * 0.1)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1.05 + -0.05 * sin((sine + 7.5) * 0.2), -1, -0.05 * sin(sine * 0.1)) * euler(0, 1.5707963267948966 + -0.2617993877991494 * sin(sine * 0.1), -0.3490658503988659 * sin(sine * 0.1)), 0.2) 
-		elseif mode == "L" then
-		    neck.C0 = neck.C0:Lerp(cf(0, 1 + 0.01 * sin(sine * 0.4), 0) * euler(-1.5882496193148399 + -0.08726646259971647 * sin((sine + -10) * 0.4), -0.2617993877991494 * sin(sine * 0.2), -3.1590459461097367), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(0.2 * sin(sine * 0.2), 0.1 + 0.3 * sin(sine * 0.4), 0) * euler(-1.4835298641951802, 0.17453292519943295 * sin(sine * 0.2), -3.141592653589793), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-0.7 + -0.2 * sin(sine * 0.2), 0.5 + -0.1 * sin(sine * 0.2), 0) * euler(1.5707963267948966 + 0.3490658503988659 * sin(sine * 0.2), -1.0471975511965976 + 0.08726646259971647 * sin(sine * 0.2), 1.2217304763960306 + 0.3490658503988659 * sin(sine * 0.2)), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(0.9 + -0.1 * sin(sine * 0.2), 0.9 + 0.1 * sin(sine * 0.4), -0.5) * euler(1.2217304763960306 + 0.3490658503988659 * sin((sine + -10) * 0.2), 2.2689280275926285 + 0.08726646259971647 * sin(sine * 0.2), 1.5707963267948966 + -0.3490658503988659 * sin((sine + -10) * 0.2)), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-0.9 + 0.2 * sin(sine * 0.2), -0.9, 0) * euler(1.5707963267948966, -2.007128639793479 + 0.4363323129985824 * sin((sine + 15) * 0.2), 1.3089969389957472 + -0.6981317007977318 * sin(sine * 0.2)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(0.9 + 0.2 * sin(sine * 0.2), -0.9, 0) * euler(1.5707963267948966, 2.007128639793479 + 0.4363323129985824 * sin((sine + 15) * 0.2), -1.3089969389957472 + -0.6981317007977318 * sin(sine * 0.2)), 0.2) 
-		elseif mode == "fly" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.5882496193148399 + 0.2617993877991494 * sin((sine + -30) * 0.025), 0.17453292519943295 * sin((sine + -10) * 0.05), -3.1590459461097367 + 0.17453292519943295 * sin((sine + 30) * 0.05)), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(1 * sin(sine * 0.05), 5 + 1 * sin(sine * 0.05), 1 * sin(sine * 0.025)) * euler(-1.5882496193148399 + 0.17453292519943295 * sin((sine + -15) * 0.025), 0.17453292519943295 * sin(sine * 0.05), -3.1590459461097367 + 0.3490658503988659 * sin((sine + 15) * 0.05)), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.5, 0) * euler(1.5707963267948966 + -0.3490658503988659 * sin((sine + -30) * 0.025), -1.5882496193148399 + 0.3490658503988659 * sin((sine + -10) * 0.05), 1.5707963267948966), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.5, 0) * euler(1.5707963267948966 + -0.3490658503988659 * sin((sine + -30) * 0.025), 1.5707963267948966 + 0.3490658503988659 * sin((sine + -20) * 0.05), -1.5707963267948966), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1, 0) * euler(1.5707963267948966, -1.5882496193148399 + 0.2617993877991494 * sin((sine + -7) * 0.05), 1.5707963267948966 + 0.3490658503988659 * sin((sine + -10) * 0.025)), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -1, 0) * euler(1.5707963267948966, 1.5707963267948966 + 0.2617993877991494 * sin((sine + -10) * 0.05), -1.5707963267948966 + -0.3490658503988659 * sin((sine + -5) * 0.025)), 0.2) 
---[[MW_animator progress save: 0, 0, 0, 0.1, -91, 15, -30, 0.025, 1, 0, 0, 0.1, 0, 10, -10, 0.05, 0, 0, 0, 0.1, -181, 10, 30, 0.05, 0, 1, 30, 0.05, -91, 10, -15, 0.025, 5, 1, 0, 0.05, 0, 10, 0, 0.05, 0, 1, 0, 0.025, -181, 20, 15, 0.05, -1, 0, 0, 0.1, 90, -20, -30, 0.025, 0.5, 0, 0, 0.1, -91, 20, -10, 0.05, 0, 0, 0, 0.1, 90, 0, 30, 0, 1, 0, 0, 0.1, 90, -20, -30, 0.025, 0.5, 0, 0, 0.1, 90, 20, -20, 0.05, 0, 0, 0, 0.1, -90, 0, 0, 0.1, -1, 0, 0, 0.1, 90, 0, 0, 0.1, -1, 0, 0, 0.1, -91, 15, -7, 0.05, 0, 0, 0, 0.1, 90, 20, -10, 0.025, 1, 0, 0, 0.1, 90, 0, 0, 0.1, -1, 0, 0, 0.1, 90, 15, -10, 0.05, 0, 0, 0, 0.1, -90, -20, -5, 0.025]]
-		elseif mode == "floss" then
-            neck.C0 = neck.C0:Lerp(cf(0, 1, 0) * euler(-1.5882496193148399 + 0.08726646259971647 * sin((sine + 3.5) * 0.2), -0.1308996938995747 * sin((sine + 7.5) * 0.1), -3.1590459461097367 + -0.08726646259971647 * sin((sine + 7.5) * 0.1)), 0.2) 
-            rootJoint.C0 = rootJoint.C0:Lerp(cf(-0.1 * sin(sine * 0.1), -0.1 * sin(sine * 0.2), 0) * euler(-1.5882496193148399, 0.17453292519943295 * sin((sine + 7.5) * 0.1), -3.1590459461097367 + 0.17453292519943295 * sin((sine + 7.5) * 0.1)), 0.2) 
-            leftShoulder.C0 = leftShoulder.C0:Lerp(cf(-1, 0.5, -0.2) * euler(1.9198621771937625, -1.5707963267948966 + -0.3490658503988659 * sin((sine + 7.5) * 0.1), 1.7453292519943295 + 0.17453292519943295 * sin((sine + 15) * 0.1)), 0.2) 
-            rightShoulder.C0 = rightShoulder.C0:Lerp(cf(1, 0.5, -0.2) * euler(-1.7453292519943295, 1.5707963267948966 + 0.3490658503988659 * sin((sine + 7.5) * 0.1), 1.9198621771937625 + 0.17453292519943295 * sin((sine + 15) * 0.1)), 0.2) 
-            leftHip.C0 = leftHip.C0:Lerp(cf(-1, -1 + -0.2 * sin((sine + 7.5) * 0.1), 0) * euler(1.5707963267948966 + 0.08726646259971647 * sin((sine + 7.5) * 0.1), -1.7453292519943295 + 0.3490658503988659 * sin((sine + 7.5) * 0.1), 1.5707963267948966), 0.2) 
-            rightHip.C0 = rightHip.C0:Lerp(cf(1, -1 + 0.2 * sin((sine + 7.5) * 0.1), 0) * euler(1.5707963267948966 + -0.08726646259971647 * sin((sine + 7.5) * 0.1), 1.7453292519943295 + 0.3490658503988659 * sin((sine + 7.5) * 0.1), -1.5707963267948966), 0.2) 
-        end
-    end
+
+idleanim=.25
+while true do
+swait()
+if muter == false then
+if not NoSound then
+	kan.Volume = ORVOL
 end
+else
+kan.Volume = 6
+end
+
+  sine = sine + change
+local torvel=(RootPart.Velocity*Vector3.new(1,0,1)).magnitude 
+local velderp=RootPart.Velocity.y
+hitfloor,posfloor=rayCast(RootPart.Position,(CFrame.new(RootPart.Position,RootPart.Position - Vector3.new(0,1,0))).lookVector,4,Character)
+if equipped==true or equipped==false then
+if attack==false then
+idle=idle+1
+else
+idle=0
+end
+if idle>=500 then
+if attack==false then
+--Sheath()
+end
+end
+if RootPart.Velocity.y > 1 and hitfloor==nil then 
+Anim="Jump"
+if attack==false then
+RH.C0=clerp(RH.C0,cf(1,-0.35 - 0.05 * math.cos(sine / 25),-0.75)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-5),math.rad(0),math.rad(-20)),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - 0.05 * math.cos(sine / 25),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-5),math.rad(0),math.rad(20)),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0 + 0.05 * math.cos(sine / 25))*angles(math.rad(-tors.Velocity.Y/6),math.rad(0),math.rad(0)),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-2.5),math.rad(0),math.rad(0)),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.1 * math.cos(sine / 25),0)*angles(math.rad(-5),math.rad(0),math.rad(25)),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.1 * math.cos(sine / 25),0)*angles(math.rad(-5),math.rad(0),math.rad(-25)),.1)
+if equipped == false then
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(130),math.rad(0)),.3)
+end
+end
+elseif RootPart.Velocity.y < -1 and hitfloor==nil then 
+Anim="Fall"
+if attack==false then
+RH.C0=clerp(RH.C0,cf(1,-0.35 - 0.05 * math.cos(sine / 25),-0.75)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-5),math.rad(0),math.rad(-20)),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - 0.05 * math.cos(sine / 25),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-5),math.rad(0),math.rad(20)),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,0,0 + 0.05 * math.cos(sine / 25))*angles(math.rad(-tors.Velocity.Y/6),math.rad(0),math.rad(0)),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2.5),math.rad(0),math.rad(0)),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.1 * math.cos(sine / 25),0)*angles(math.rad(-15),math.rad(0),math.rad(55)),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.1 * math.cos(sine / 25),0)*angles(math.rad(-15),math.rad(0),math.rad(-55)),.1)
+if equipped == false then
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(130),math.rad(0)),.3)
+end
+end
+elseif torvel<1 and hitfloor~=nil then
+Anim="Idle"
+if attack==false and BanishMode == 1 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(30 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0 - 7 * math.cos(sine / 40)),math.rad(-30 - 3 * math.cos(sine / 40))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-0.5 + -0.266 * math.sin(sine / 20)  - 0.05 * math.sin(sine / 40),-0.25)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6 + 4 * math.cos(sine / 40)),math.rad(0 - 8 * math.cos(sine / 40)),math.rad(-10 + 5 * math.cos(sine / 20) - 6 * math.cos(sine / 40))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + -0.266 * math.sin(sine / 20) - 0.05 * math.sin(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-6 - 4 * math.cos(sine / 40)),math.rad(10 - 8 * math.cos(sine / 40)),math.rad(10 - 5 * math.cos(sine / 20) - 3 * math.cos(sine / 40))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.05 * math.cos(sine / 40),1 - 0.266 * math.cos(sine / 20))*angles(math.rad(6 + -5 * math.cos(sine / 20)),math.rad(0 + 5 * math.cos(sine / 40)),math.rad(-20 + 16 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(20 - 4 * math.sin(sine / 42)),math.rad(0 - 4 * math.sin(sine / 40)),math.rad(20 - 30 * math.sin(sine / 40))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.3 * math.sin(sine / 20),0.1)*angles(math.rad(-13 + 3 * math.cos(sine / 26)),math.rad(-20 - 3 * math.cos(sine / 24)),math.rad(20 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.3 * math.sin(sine / 20),0.1)*angles(math.rad(-13 - 3 * math.cos(sine / 25)),math.rad(10 + 3 * math.cos(sine / 24)),math.rad(-10 + 5 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -90 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+end
+if attack==false and BanishMode == 7 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(30 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(2),math.rad(0 - 7 * math.cos(sine / 40)),math.rad(-30 - 3 * math.cos(sine / 40))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(190 + -600 * math.sin(sine / 40))),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-0.5 + -0.266 * math.sin(sine / 20)  - 0.05 * math.sin(sine / 40),-0.25)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6 + 4 * math.cos(sine / 40)),math.rad(0 - 8 * math.cos(sine / 40)),math.rad(-10 + 5 * math.cos(sine / 20) - 6 * math.cos(sine / 40))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + -0.266 * math.sin(sine / 20) - 0.05 * math.sin(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-6 - 4 * math.cos(sine / 40)),math.rad(10 - 8 * math.cos(sine / 40)),math.rad(10 - 5 * math.cos(sine / 20) - 3 * math.cos(sine / 40))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.05 * math.cos(sine / 40),1 - 0.266 * math.cos(sine / 20))*angles(math.rad(6 + -5 * math.cos(sine / 20)),math.rad(0 + 5 * math.cos(sine / 40)),math.rad(10 + 16 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.3 * math.sin(sine / 20),0.1)*angles(math.rad(10 + 3 * math.cos(sine / 26)),math.rad(8 - 3 * math.cos(sine / 24)),math.rad(20 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.3 * math.sin(sine / 20),0.1)*angles(math.rad(10 - 3 * math.cos(sine / 25)),math.rad(10 + 3 * math.cos(sine / 24)),math.rad(-10 + 5 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0.5 + 5 * math.cos(sine / 30),0,-1.5)*angles(math.rad(0),math.rad(0),math.rad(190 + -800 * math.sin(sine / 40))),.3)
+end
+end
+if attack==false and BanishMode == 2 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(30 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-10 - 15 * math.cos(sine / 0.5)),math.rad(5 - 15 * math.cos(sine / 0.5)),math.rad(20 - 20 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6 + 4 * math.cos(sine / 40)),math.rad(0 - 8 * math.cos(sine / 40)),math.rad(10 + -5 * math.cos(sine / 40) - 6 * math.cos(sine / 40))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-6 - 4 * math.cos(sine / 40)),math.rad(10 - 8 * math.cos(sine / 40)),math.rad(-10 - -5 * math.cos(sine / 40) - 3 * math.cos(sine / 40))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.06 * math.cos(sine / 40),-0.05 - 0.08 * math.cos(sine / 20))*angles(math.rad(22 + -5 * math.cos(sine / 20)),math.rad(1 + 0.5 * math.cos(sine / 40)),math.rad(-10 + 8 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-10 - 15 * math.cos(sine / 0.5)),math.rad(5 - 15 * math.cos(sine / 0.5)),math.rad(20 - 20 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.155 * math.sin(sine / 20),0.1)*angles(math.rad(25 + 3 * math.cos(sine / 26)),math.rad(30 - 3 * math.cos(sine / 24)),math.rad(60 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.155 * math.sin(sine / 20),0.1)*angles(math.rad(25 - 3 * math.cos(sine / 25)),math.rad(10 + 3 * math.cos(sine / 24)),math.rad(-10 + 5 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(180 + -360 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+end
+
+if attack==false and BanishMode == 4 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(30 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-10 - 15 * math.cos(sine / 0.5)),math.rad(5 - 15 * math.cos(sine / 0.5)),math.rad(20 - 20 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-1 + -0.05 * math.cos(sine / 80)  - 0.02 * math.cos(sine / 80),-0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-6 + 4 * math.cos(sine / 80)),math.rad(10 - 8 * math.cos(sine / 80)),math.rad(10 + -5 * math.cos(sine / 80) - 6 * math.cos(sine / 80))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 80) - 0.02 * math.cos(sine / 80),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-6 - 4 * math.cos(sine / 80)),math.rad(10 - 8 * math.cos(sine / 80)),math.rad(-10 - -5 * math.cos(sine / 80) - 6 * math.cos(sine / 80))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.1 * math.cos(sine / 80),0 - 0.095 * math.cos(sine / 80),-0 - 0.122 * math.cos(sine / 40))*angles(math.rad(12.6 + -5 * math.cos(sine / 40)),math.rad(1 + 0.5 * math.cos(sine / 40)),math.rad(-10 + 8 * math.cos(sine / 80))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(18+math.random(-30,30)), math.rad(0+math.random(-30,30)), math.rad(0+math.random(-30,30))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.2 * math.sin(sine / 40),0.1)*angles(math.rad(20+math.random(-10,10)), math.rad(10+math.random(-10,10)), math.rad(12+math.random(-10,10))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + 0.2 * math.sin(sine / 40),0.1)*angles(math.rad(25 - 3 * math.cos(sine / 25)),math.rad(30 + 3 * math.sin(sine / 40)),math.rad(-10 + 5 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0 + -0.1 * math.sin(sine / 0.5)),math.rad(180 + -90 * math.sin(sine / 40)),math.rad(0 + -0.1 * math.sin(sine / 0.5))),.3)
+end
+end
+
+if attack==false and BanishMode == 5 then
+if equipped == false then
+kan.Pitch = 0.95
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(-30 + 10 * math.sin(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+kan.Pitch = 0.778
+RH.C0=clerp(RH.C0,cf(1,-1 + -0.255 * math.cos(sine / 40)  - 0 * math.cos(sine / 40),-0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-8 + 0 * math.cos(sine / 80)),math.rad(0 - 0 * math.cos(sine / 80)),math.rad(0 + -0 * math.cos(sine / 80) - 0 * math.cos(sine / 40))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + -0.255 * math.cos(sine / 40) - 0 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-8 - 0 * math.cos(sine / 80)),math.rad(0 - 0 * math.cos(sine / 80)),math.rad(0 - -0 * math.cos(sine / 80) - 0 * math.cos(sine / 40))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf( 0 + 0 * math.cos(sine / 40),0 - 0 * math.cos(sine / 40),0 - -0.255 * math.cos(sine / 40))*angles(math.rad(1 + -0.1 * math.cos(sine / 40)),math.rad(1 + 0.1 * math.cos(sine / 40)),math.rad(-1 + 2 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.585 + -0.277 * math.sin(sine / 40),0.1)*angles(math.rad(-20+math.random(-10,10)), math.rad(10+math.random(-10,10)), math.rad(-150+math.random(-10,10))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45,0.5 + -0.277 * math.sin(sine / 40),0.1)*angles(math.rad(5 - 3 * math.cos(sine / 25)),math.rad(0 + 10 * math.sin(sine / 40)),math.rad(-12 + -11 * math.cos(sine / 40))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0 + -0 * math.sin(sine / 0.5)),math.rad(-90 + -5 * math.sin(sine / 40)),math.rad(0 + -0.1 * math.sin(sine / 0.5))),.3)
+end
+end
+
+if attack==false and BanishMode == 1000 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 20)  - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-0.05 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(30 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-6 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(13 - 5 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-13 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(10 + 2 * math.cos(sine / 34))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1 + 0 * (1+math.random(-10,10)),-1 + -0.255 * (1+math.random(-10,10))  - 0 * (1+math.random(-10,10)),-0 + 0 * (1+math.random(-10,10)))*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-8 + 0 * math.cos(sine / 80)),math.rad(0 - 0 * math.cos(sine / 80)),math.rad(0 + -0 * math.cos(sine / 80) - 0 * math.cos(sine / 40))),.1)
+LH.C0=clerp(LH.C0,cf(-1 + 0 * (1+math.random(-10,10)),-1 + -0.255 * (1+math.random(-10,10)) - 0 * (1+math.random(-10,10)),0 + 0 * (1+math.random(-10,10)))*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(-8 - 0 * math.cos(sine / 80)),math.rad(0 - 0 * math.cos(sine / 80)),math.rad(0 - -0 * math.cos(sine / 80) - 0 * math.cos(sine / 40))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf( 0 + 0 * (1+math.random(-10,10)),0 - 0 * (1+math.random(-10,10)),0 - -0.255 * (1+math.random(-2.5,10)))*angles(math.rad(1 + -0.1 * math.cos(sine / 40)),math.rad(1 + 0.1 * math.cos(sine / 40)),math.rad(-10 + 2 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.45 + 0 * (1+math.random(-10,10)),0.585 + -0.277 * (1+math.random(-10,10)),-0.15 - 0 * (1+math.random(-10,10)))*angles(math.rad(-20+math.random(-10,10)), math.rad(10+math.random(-10,10)), math.rad(-150+math.random(-10,10))),.1)
+LW.C0=clerp(LW.C0,cf(-1.45 + 0 * (1+math.random(-10,10)),0.5 + -0.277 * (1+math.random(-10,10)),0.1 - 0 * (1+math.random(-10,10)))*angles(math.rad(5 - 3 * math.cos(sine / 25)),math.rad(0 + 10 * math.sin(sine / 40)),math.rad(-12 + -11 * math.cos(sine / 40))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0 + -0 * math.sin(sine / 0.5)),math.rad(-90 + -5 * math.sin(sine / 40)),math.rad(0 + -0.1 * math.sin(sine / 0.5))),.3)
+end
+end
+
+if attack==false and BanishMode == "KAR" then
+RH.C0=clerp(RH.C0,cf(1,0.255 + 0.05 * math.cos(sine / 20)  - 0.05 * math.cos(sine / 40),-0.8)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1.45 + 0.05 * math.cos(sine / 20) - 0.02 * math.cos(sine / 40),0)*angles(math.rad(-0),math.rad(-90),math.rad(90))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-1.25 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(0 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-0 - 40 * math.cos(sine / 0.5)),math.rad(2 - 45 * math.cos(sine / 0.5)),math.rad(0 - 40 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(-10 + 5 * math.cos(sine / 26)),math.rad(-10 - 6 * math.cos(sine / 24)),math.rad(-20 - 20 * math.cos(sine / 1))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(180 - 1 * math.cos(sine / 25)),math.rad(10 + 2 * math.cos(sine / 24)),math.rad(20 + 2 * math.cos(sine / 1))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -90 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+
+if attack==false and BanishMode == 2000 then
+RH.C0=clerp(RH.C0,cf(1,-1.45 + 0.05 * math.cos(sine / 20)  - 0.05 * math.cos(sine / 40),0)*angles(math.rad(10),math.rad(90),math.rad(90))*angles(math.rad(-3 + 2 * math.cos(sine / 40)),math.rad(-15),math.rad(0 + 2 * math.cos(sine / 20))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1.45 + 0.05 * math.cos(sine / 20) - 0.05 * math.cos(sine / 40),0)*angles(math.rad(10),math.rad(-90),math.rad(-90))*angles(math.rad(-3 - 2 * math.cos(sine / 40)),math.rad(1),math.rad(0 - 2 * math.cos(sine / 20))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0 + 0.02 * math.cos(sine / 40),0 - 0.02 * math.cos(sine / 40),-1.75 - 0.05 * math.cos(sine / 20))*angles(math.rad(0 + 2 * math.cos(sine / 20)),math.rad(0 + 2 * math.cos(sine / 40)),math.rad(0 + 3 * math.cos(sine / 40))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-0 - 2 * math.cos(sine / 8)),math.rad(0 - 2 * math.cos(sine / 16)),math.rad(0 - 2 * math.cos(sine / 8))),.1)
+RW.C0=clerp(RW.C0,cf(1.45,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(10 + 5 * math.cos(sine / 26)),math.rad(-10 - 4 * math.cos(sine / 24)),math.rad(20 - 2 * math.cos(sine / 24))),.1)
+LW.C0=clerp(LW.C0,cf(-1.4,0.5 + 0.05 * math.cos(sine / 28),0.1)*angles(math.rad(10 - 5 * math.cos(sine / 25)),math.rad(10 + 4 * math.cos(sine / 24)),math.rad(-20 + 2 * math.cos(sine / 24))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -90 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+
+elseif torvel>2 and torvel<42 and hitfloor~=nil then
+Anim="Walk"
+if attack==false and BanishMode == 1 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-5 - 5 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 8))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-0.5 - -0.266 * math.sin(sine / 22),-0.6)*angles(math.rad(-10),math.rad(90),math.rad(-20))*angles(math.rad(0),math.rad(0),math.rad(-4 + 2 * math.sin(sine / 22))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - -0.266 * math.sin(sine / 22),-0)*angles(math.rad(10),math.rad(-90),math.rad(20))*angles(math.rad(0),math.rad(0),math.rad(6 + 2 * math.sin(sine / 22))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.3,1.1 + 0.34 * math.cos(sine / 22))*angles(math.rad(45 - 2 * math.sin(sine / 22)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 22))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-2.5 + 4 * math.cos(sine / 22)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 22))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.255 * math.sin(sine / 22))*angles(math.rad(-10),math.rad(0),math.rad(15 - 2 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.255 * math.sin(sine / 22))*angles(math.rad(0 + 3 * math.sin(sine / 22)),math.rad(0),math.rad(-5 + 3 * math.sin(sine / 22))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -90 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+end
+if attack==false and BanishMode == 7 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-5 - 5 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 8))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-0.5 - -0.266 * math.sin(sine / 22),-0.6)*angles(math.rad(-10),math.rad(90),math.rad(-20))*angles(math.rad(0),math.rad(0),math.rad(-4 + 2 * math.sin(sine / 22))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - -0.266 * math.sin(sine / 22),-0)*angles(math.rad(10),math.rad(-90),math.rad(20))*angles(math.rad(0),math.rad(0),math.rad(6 + 2 * math.sin(sine / 22))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.3,1.1 + 0.34 * math.cos(sine / 22))*angles(math.rad(45 - 2 * math.sin(sine / 22)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 22))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(1+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.255 * math.sin(sine / 22))*angles(math.rad(-10),math.rad(0),math.rad(15 - 2 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.255 * math.sin(sine / 22))*angles(math.rad(0 + 3 * math.sin(sine / 22)),math.rad(0),math.rad(-5 + 3 * math.sin(sine / 22))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0.5 + 5 * math.cos(sine / 30),0,-1.5)*angles(math.rad(0),math.rad(0),math.rad(190 + -800 * math.sin(sine / 40))),.3)
+end
+end
+if attack==false and BanishMode == 2 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-5 - 5 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 8))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-1 - 0.15 * math.cos(sine / 3),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0),math.rad(0 + 85 * math.cos(sine / 6))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - 0.15 * math.cos(sine / 3),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0),math.rad(0 + 85 * math.cos(sine / 6))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.3,-0.05 + 0.15 * math.cos(sine / 3))*angles(math.rad(15 - 4 * math.cos(sine / 3)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 6))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-6 - 15 * math.cos(sine / 0.5)),math.rad(6 - 15 * math.cos(sine / 0.5)),math.rad(10 - 20 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 4.6))*angles(math.rad(-40),math.rad(0),math.rad(25 - 2 * math.cos(sine / 34))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.5 * math.cos(sine / 6))*angles(math.rad(0 + 140 * math.cos(sine / 6)),math.rad(0),math.rad(-5 + 20 * math.cos(sine / 3))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -360 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+end
+if attack==false and BanishMode == 4 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(20+math.random(-30,30)), math.rad(0+math.random(-30,30)), math.rad(0+math.random(-30,30))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 12),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 16)),math.rad(0 + 22 * math.cos(sine / 16))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 12),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 16)),math.rad(0 + 22 * math.cos(sine / 16))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 12))*angles(math.rad(10 + 3 * math.cos(sine / 12)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 16))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(30+math.random(-30,30)), math.rad(0+math.random(-30,30)), math.rad(0+math.random(-30,30))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 16))*angles(math.rad(12 - 12 * math.cos(sine / 16)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 8))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 16))*angles(math.rad(12 + 12 * math.cos(sine / 16)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 8))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -100 * math.sin(sine / 80)),math.rad(0)),.3)
+end
+end
+
+if attack==false and BanishMode == 5 then
+if equipped == false then
+kan.Pitch = 0.95
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.2 * math.sin(sine / 8),-0.12 + 0.2 * math.cos(sine / 8))*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + -40 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + -0.2 * math.sin(sine / 8),-0.12 + -0.2 * math.cos(sine / 8))*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + -40 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(10 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1),math.rad(0 - root.RotVelocity.Y - 6 * math.sin(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(3+math.random(-10,10)), math.rad(0+math.random(-25,12)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + -0.25 * math.sin(sine / 8))*angles(math.rad(12 + 18 * math.cos(sine / 8)),math.rad(0),math.rad(0 + 0 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - -0.25 * math.sin(sine / 8))*angles(math.rad(12 + -18 * math.cos(sine / 8)),math.rad(0),math.rad(0 + 0 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+kan.Pitch = 0.778
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.2 * math.sin(sine / 12),-0.12 + 0.2 * math.cos(sine / 12))*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 12)),math.rad(0 + -22 * math.cos(sine / 12))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + -0.2 * math.sin(sine / 12),-0.12 + -0.2 * math.cos(sine / 12))*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 12)),math.rad(0 + -22 * math.cos(sine / 12))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 6))*angles(math.rad(10 + 3 * math.cos(sine / 6)),math.rad(0 + root.RotVelocity.Y/0.6),math.rad(0 - root.RotVelocity.Y - 6 * math.sin(sine / 12))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(3+math.random(-10,10)), math.rad(0+math.random(-25,12)), math.rad(0+math.random(-10,10))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + -0.25 * math.sin(sine / 12))*angles(math.rad(12 + 18 * math.cos(sine / 12)),math.rad(0),math.rad(0 + 0 * math.cos(sine / 6))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - -0.25 * math.sin(sine / 12))*angles(math.rad(95 + -3 * math.cos(sine / 12)),math.rad(0),math.rad(0 + 0 * math.cos(sine / 6))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(-90 + -2 * math.sin(sine / 80)),math.rad(0)),.3)
+end
+end
+
+if attack==false and BanishMode == 1000 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(20+math.random(-100,100)), math.rad(0+math.random(-100,100)), math.rad(0+math.random(-100,100))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1 + 0.2 * (1+math.random(-5,5)),-1 + 0.2 * (1+math.random(-5,5)),0 + 0.1 * (1+math.random(-5,5)))*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 18)),math.rad(0 + -22 * math.cos(sine / 18))),.1)
+LH.C0=clerp(LH.C0,cf(-1 + 0.2 * (1+math.random(-5,5)),-1 + 0.2 * (1+math.random(-5,5)),0 + -0.1 * (1+math.random(-5,5)))*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 18)),math.rad(0 + -22 * math.cos(sine / 18))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(-0 + 0.05 * (1+math.random(-10,10)),-0.05 + 0.05 * (1+math.random(-10,10)),-0.05 + 0.05 * (1+math.random(-10,10)))*angles(math.rad(10 + 3 * math.cos(sine / 9)),math.rad(0 + root.RotVelocity.Y/1),math.rad(0 - root.RotVelocity.Y - -6 * math.sin(sine / 18))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(3+math.random(-100,100)), math.rad(0+math.random(-100,100)), math.rad(0+math.random(-100,100))),.1)
+RW.C0=clerp(RW.C0,cf(1.5 + 0.05 * (1+math.random(-20,20)),0.5 + 0.05 * (1+math.random(-20,20)),0 + 0.05 * (1+math.random(-20,20)))*angles(math.rad(-20+math.random(-10,10)), math.rad(0+math.random(-10,10)), math.rad(215+math.random(-10,10))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5 + 0.05 * (1+math.random(-20,20)),0.5 + 0.05 * (1+math.random(-20,20)),0 - -0.25 * (1+math.random(-20,20)))*angles(math.rad(12 + -18 * math.cos(sine / 18)),math.rad(0),math.rad(0 + 0 * math.cos(sine / 9))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(-90 + -2 * math.sin(sine / 80)),math.rad(0)),.3)
+end
+end
+
+if attack==false and BanishMode == 3 then
+if equipped == false then
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-5 - 5 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 8))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(-3,0,-0.5)*angles(math.rad(0),math.rad(0),math.rad(-40)),.3)
+else
+RH.C0=clerp(RH.C0,cf(1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 + 0.05 * math.cos(sine / 4),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0 + 5 * math.cos(sine / 8)),math.rad(0 + 45 * math.cos(sine / 8))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.05,-0.05 + 0.05 * math.cos(sine / 4))*angles(math.rad(5 + 3 * math.cos(sine / 4)),math.rad(0 + root.RotVelocity.Y/1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 8))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-0 - 35 * math.cos(sine / 0.5)),math.rad(10 - 30 * math.cos(sine / 0.5)),math.rad(0 - 25 * math.cos(sine / 0.5))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.25 * math.cos(sine / 8))*angles(math.rad(0 - 50 * math.cos(sine / 8)),math.rad(0),math.rad(5 - 10 * math.cos(sine / 4))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.25 * math.cos(sine / 8))*angles(math.rad(0 + 50 * math.cos(sine / 8)),math.rad(0),math.rad(-5 + 10 * math.cos(sine / 4))),.1)
+weaponweld.C1=clerp(weaponweld.C1,cf(0,1,0)*angles(math.rad(0),math.rad(190 + -999 * math.sin(sine / 40)),math.rad(0)),.3)
+end
+end
+elseif torvel>=42 and hitfloor~=nil then
+Anim="Run"
+if attack==false then
+RH.C0=clerp(RH.C0,cf(1,-1 - 0.15 * math.cos(sine / 3),0)*angles(math.rad(0),math.rad(90),math.rad(0))*angles(math.rad(0),math.rad(0),math.rad(0 + 85 * math.cos(sine / 6))),.1)
+LH.C0=clerp(LH.C0,cf(-1,-1 - 0.15 * math.cos(sine / 3),0)*angles(math.rad(0),math.rad(-90),math.rad(0))*angles(math.rad(0),math.rad(0),math.rad(0 + 85 * math.cos(sine / 6))),.1)
+RootJoint.C0=clerp(RootJoint.C0,RootCF*cf(0,-0.3,-0.05 + 0.15 * math.cos(sine / 3))*angles(math.rad(15 - 4 * math.cos(sine / 3)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - root.RotVelocity.Y - 10 * math.cos(sine / 6))),.1)
+Torso.Neck.C0=clerp(Torso.Neck.C0,necko*angles(math.rad(-2.5 + 4 * math.cos(sine / 3)),math.rad(0 + root.RotVelocity.Y*1.5),math.rad(0 - hed.RotVelocity.Y*1.5 + 10 * math.cos(sine / 6))),.1)
+RW.C0=clerp(RW.C0,cf(1.5,0.5,0 + 0.5 * math.cos(sine / 6))*angles(math.rad(0 - 140 * math.cos(sine / 6)),math.rad(0),math.rad(5 - 20 * math.cos(sine / 3))),.1)
+LW.C0=clerp(LW.C0,cf(-1.5,0.5,0 - 0.5 * math.cos(sine / 6))*angles(math.rad(0 + 140 * math.cos(sine / 6)),math.rad(0),math.rad(-5 + 20 * math.cos(sine / 3))),.1)
+end
+end
+end
+end
+------
